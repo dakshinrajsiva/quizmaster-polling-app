@@ -8,6 +8,10 @@ export const metadata = {
   description: 'Real-time interactive quiz application like Kahoot',
 }
 
+// Force dynamic rendering for the entire app
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export default function RootLayout({
   children,
 }: {

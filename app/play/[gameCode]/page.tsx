@@ -7,6 +7,9 @@ import socketManager from '@/lib/socket-manager'
 import { Question, Player } from '@/types/quiz'
 import { getAnswerOptionLabel, getAnswerOptionClass, formatTime } from '@/lib/utils'
 
+// Force dynamic rendering
+export const dynamic = 'force-dynamic'
+
 export default function PlayGamePage() {
   const params = useParams()
   const router = useRouter()

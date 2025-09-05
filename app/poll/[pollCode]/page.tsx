@@ -7,6 +7,9 @@ import socketManager from '@/lib/socket-manager'
 import { PollRoom, PollResult } from '@/types/quiz'
 import { formatTime } from '@/lib/utils'
 
+// Force dynamic rendering
+export const dynamic = 'force-dynamic'
+
 export default function PollHostPage() {
   const params = useParams()
   const router = useRouter()
