@@ -1,0 +1,75 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply scroll-smooth;
+  }
+  
+  body {
+    @apply bg-gradient-to-br from-blue-50 to-purple-50 min-h-screen;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-primary-500 hover:bg-primary-600 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 transform hover:scale-105 shadow-lg hover:shadow-xl;
+  }
+  
+  .btn-secondary {
+    @apply bg-secondary-500 hover:bg-secondary-600 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 transform hover:scale-105 shadow-lg hover:shadow-xl;
+  }
+  
+  .btn-success {
+    @apply bg-success-500 hover:bg-success-600 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 transform hover:scale-105 shadow-lg hover:shadow-xl;
+  }
+  
+  .btn-warning {
+    @apply bg-warning-500 hover:bg-warning-600 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 transform hover:scale-105 shadow-lg hover:shadow-xl;
+  }
+  
+  .btn-danger {
+    @apply bg-danger-500 hover:bg-danger-600 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 transform hover:scale-105 shadow-lg hover:shadow-xl;
+  }
+  
+  .card {
+    @apply bg-white rounded-xl shadow-lg border border-gray-100 p-6 transition-all duration-200 hover:shadow-xl;
+  }
+  
+  .input-field {
+    @apply w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200;
+  }
+  
+  .answer-option {
+    @apply p-4 rounded-lg border-2 cursor-pointer transition-all duration-200 transform hover:scale-105;
+  }
+  
+  .answer-option-a {
+    @apply bg-red-100 border-red-300 hover:bg-red-200 text-red-800;
+  }
+  
+  .answer-option-b {
+    @apply bg-blue-100 border-blue-300 hover:bg-blue-200 text-blue-800;
+  }
+  
+  .answer-option-c {
+    @apply bg-yellow-100 border-yellow-300 hover:bg-yellow-200 text-yellow-800;
+  }
+  
+  .answer-option-d {
+    @apply bg-green-100 border-green-300 hover:bg-green-200 text-green-800;
+  }
+  
+  .answer-option-selected {
+    @apply ring-4 ring-primary-500 shadow-lg;
+  }
+  
+  .answer-option-correct {
+    @apply bg-green-500 border-green-500 text-white ring-4 ring-green-300;
+  }
+  
+  .answer-option-incorrect {
+    @apply bg-red-500 border-red-500 text-white ring-4 ring-red-300;
+  }
+}
