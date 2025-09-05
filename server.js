@@ -5,13 +5,38 @@ const { v4: uuidv4 } = require('uuid')
 console.log('Socket.io server starting...')
 
 const httpServer = createServer()
+const allowedOrigins = {
+  development: [
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://localhost:3002',
+    'http://127.0.0.1:3000',
+    'http://127.0.0.1:3001'
+  ],
+  production: [
+    process.env.CLIENT_URL,
+    'https://quizmaster-6fskhlzqt-dakshin-raj-sivas-projects.vercel.app'
+  ].filter(Boolean)
+};
+
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.NODE_ENV === 'production' 
-      ? [process.env.CLIENT_URL || 'https://your-app.vercel.app'] 
-      : ['http://localhost:3000', 'http://localhost:3002'],
+    origin: (origin, callback) => {
+      const allowed = allowedOrigins[process.env.NODE_ENV] || allowedOrigins.development;
+
+      // Allow no origin (mobile apps, server-to-server)
+      if (!origin) return callback(null, true);
+
+      if (allowed.includes(origin)) {
+        callback(null, true);
+      } else {
+        console.warn(`🚫 CORS blocked: ${origin}`);
+        callback(new Error(`Origin ${origin} not allowed by CORS`));
+      }
+    },
     methods: ['GET', 'POST'],
-    credentials: true
+    credentials: true,
+    optionsSuccessStatus: 200
   },
   // Enable both WebSocket and long polling
   transports: ['websocket', 'polling'],
@@ -62,7 +87,7 @@ setInterval(() => {
       rateLimits.delete(socketId)
     }
   }
-  
+
   // Clean up old connection stats
   for (const [ip, count] of connectionStats.connectionsPerIP.entries()) {
     if (count <= 0) {
@@ -101,30 +126,30 @@ function getLeaderboard(room) {
 function checkRateLimit(socket) {
   const now = Date.now()
   const socketId = socket.id
-  
+
   if (!rateLimits.has(socketId)) {
     rateLimits.set(socketId, {
       requests: [],
       lastReset: now
     })
   }
-  
+
   const rateData = rateLimits.get(socketId)
-  
+
   // Reset if window expired
   if (now - rateData.lastReset > RATE_LIMIT_WINDOW) {
     rateData.requests = []
     rateData.lastReset = now
   }
-  
+
   // Add current request
   rateData.requests.push(now)
-  
+
   // Remove old requests outside window
   rateData.requests = rateData.requests.filter(
     timestamp => now - timestamp < RATE_LIMIT_WINDOW
   )
-  
+
   // Check if over limit
   if (rateData.requests.length > MAX_REQUESTS_PER_WINDOW) {
     socket.emit('rate-limit-exceeded', {
@@ -133,14 +158,14 @@ function checkRateLimit(socket) {
     })
     return false
   }
-  
+
   return true
 }
 
 // Connection validation
 function validateConnection(socket) {
   const clientIP = socket.handshake.address
-  
+
   // Check total connections
   if (connectionStats.activeConnections >= connectionStats.maxConnections) {
     socket.emit('connection-rejected', {
@@ -149,7 +174,7 @@ function validateConnection(socket) {
     socket.disconnect(true)
     return false
   }
-  
+
   // Check connections per IP
   const ipConnections = connectionStats.connectionsPerIP.get(clientIP) || 0
   if (ipConnections >= connectionStats.maxConnectionsPerIP) {
@@ -159,29 +184,29 @@ function validateConnection(socket) {
     socket.disconnect(true)
     return false
   }
-  
+
   return true
 }
 
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id)
-  
+
   // Validate connection
   if (!validateConnection(socket)) {
     return
   }
-  
+
   // Update connection stats
   const clientIP = socket.handshake.address
   connectionStats.totalConnections++
   connectionStats.activeConnections++
   connectionStats.connectionsPerIP.set(
-    clientIP, 
+    clientIP,
     (connectionStats.connectionsPerIP.get(clientIP) || 0) + 1
   )
-  
+
   console.log(`Connection stats: ${connectionStats.activeConnections}/${connectionStats.maxConnections} active`)
-  
+
   // Add rate limiting wrapper for all events
   const originalEmit = socket.emit
   socket.emit = function(...args) {
@@ -195,7 +220,7 @@ io.on('connection', (socket) => {
     console.log('Received create-game event:', data)
     const { quiz, hostName } = data
     const gameCode = generateGameCode()
-    
+
     const room = {
       id: gameCode,
       quiz: {
@@ -210,18 +235,18 @@ io.on('connection', (socket) => {
       answers: {},
       createdAt: new Date()
     }
-    
+
     gameRooms.set(gameCode, room)
     socket.join(gameCode)
-    
+
     console.log(`Game created with code: ${gameCode}`)
     console.log('Emitting game-created event to client')
-    
+
     socket.emit('game-created', {
       gameCode,
       room
     })
-    
+
     console.log(`Game created: ${gameCode}`)
   })
 
@@ -229,23 +254,23 @@ io.on('connection', (socket) => {
   socket.on('join-game', (data) => {
     const { gameCode, playerName } = data
     const room = gameRooms.get(gameCode)
-    
+
     if (!room) {
       socket.emit('join-error', { message: 'Game not found' })
       return
     }
-    
+
     if (room.status !== 'waiting') {
       socket.emit('join-error', { message: 'Game has already started' })
       return
     }
-    
+
     // Check if player name already exists
     if (room.players.some(p => p.name === playerName)) {
       socket.emit('join-error', { message: 'Player name already taken' })
       return
     }
-    
+
     const player = {
       id: uuidv4(),
       name: playerName,
@@ -253,18 +278,18 @@ io.on('connection', (socket) => {
       socketId: socket.id,
       joinedAt: new Date()
     }
-    
+
     room.players.push(player)
     playerSockets.set(player.id, socket.id)
     socket.join(gameCode)
-    
+
     // Notify all players and host
     io.to(gameCode).emit('player-joined', {
       player,
       players: room.players,
       playerCount: room.players.length
     })
-    
+
     socket.emit('join-success', {
       player,
       room: {
@@ -274,7 +299,7 @@ io.on('connection', (socket) => {
         status: room.status
       }
     })
-    
+
     console.log(`Player ${playerName} joined game ${gameCode}`)
   })
 
@@ -283,37 +308,37 @@ io.on('connection', (socket) => {
     console.log('Received start-game event:', data)
     const { gameCode } = data
     const room = gameRooms.get(gameCode)
-    
+
     console.log('Room found:', !!room)
     console.log('Host match:', room?.host === socket.id)
     console.log('Players count:', room?.players.length || 0)
-    
+
     if (!room || room.host !== socket.id) {
       console.log('Error: Unauthorized or game not found')
       socket.emit('error', { message: 'Unauthorized or game not found' })
       return
     }
-    
+
     if (room.players.length === 0) {
       console.log('Error: No players to start the game')
       socket.emit('error', { message: 'No players to start the game' })
       return
     }
-    
+
     room.status = 'active'
     room.currentQuestionIndex = 0
     room.answers = {}
-    
+
     const currentQuestion = room.quiz.questions[0]
     room.questionStartTime = new Date()
-    
+
     // Start first question
     io.to(gameCode).emit('game-started', {
       status: room.status,
       currentQuestionIndex: room.currentQuestionIndex,
       totalQuestions: room.quiz.questions.length
     })
-    
+
     // Send question to all players (without correct answer)
     const questionForPlayers = {
       id: currentQuestion.id,
@@ -323,16 +348,16 @@ io.on('connection', (socket) => {
       questionNumber: room.currentQuestionIndex + 1,
       totalQuestions: room.quiz.questions.length
     }
-    
+
     io.to(gameCode).emit('new-question', questionForPlayers)
-    
+
     // Auto-advance after time limit
     setTimeout(() => {
       if (room.status === 'active' && room.currentQuestionIndex === 0) {
         socket.emit('end-question', { gameCode })
       }
     }, currentQuestion.timeLimit * 1000)
-    
+
     console.log(`Game ${gameCode} started`)
   })
 
@@ -340,21 +365,21 @@ io.on('connection', (socket) => {
   socket.on('submit-answer', (data) => {
     const { gameCode, playerId, answerIndex, timeRemaining } = data
     const room = gameRooms.get(gameCode)
-    
+
     if (!room || room.status !== 'active') {
       return
     }
-    
+
     // Record the answer
     room.answers[playerId] = {
       answerIndex,
       timeRemaining,
       submittedAt: new Date()
     }
-    
+
     const currentQuestion = room.quiz.questions[room.currentQuestionIndex]
     const isCorrect = answerIndex === currentQuestion.correctAnswer
-    
+
     // Calculate score
     if (isCorrect) {
       const player = room.players.find(p => p.id === playerId)
@@ -363,7 +388,7 @@ io.on('connection', (socket) => {
         player.score += score
       }
     }
-    
+
     // Notify host of answer submission
     io.to(room.host).emit('answer-submitted', {
       playerId,
@@ -372,7 +397,7 @@ io.on('connection', (socket) => {
       answersCount: Object.keys(room.answers).length,
       totalPlayers: room.players.length
     })
-    
+
     console.log(`Player ${playerId} answered question in game ${gameCode}`)
   })
 
@@ -380,13 +405,13 @@ io.on('connection', (socket) => {
   socket.on('end-question', (data) => {
     const { gameCode } = data
     const room = gameRooms.get(gameCode)
-    
+
     if (!room || room.host !== socket.id) {
       return
     }
-    
+
     const currentQuestion = room.quiz.questions[room.currentQuestionIndex]
-    
+
     // Calculate results
     const results = {
       questionId: currentQuestion.id,
@@ -397,19 +422,19 @@ io.on('connection', (socket) => {
       correctPlayers: [],
       stats: new Array(currentQuestion.options.length).fill(0)
     }
-    
+
     // Process all answers
     for (const [playerId, answer] of Object.entries(room.answers)) {
       results.playerAnswers[playerId] = answer.answerIndex
       results.stats[answer.answerIndex]++
-      
+
       if (answer.answerIndex === currentQuestion.correctAnswer) {
         results.correctPlayers.push(playerId)
       }
     }
-    
+
     room.status = 'results'
-    
+
     // Send results to all players
     io.to(gameCode).emit('question-results', {
       results,
@@ -417,7 +442,7 @@ io.on('connection', (socket) => {
       currentQuestionIndex: room.currentQuestionIndex,
       totalQuestions: room.quiz.questions.length
     })
-    
+
     console.log(`Question ${room.currentQuestionIndex + 1} ended in game ${gameCode}`)
   })
 
@@ -425,33 +450,33 @@ io.on('connection', (socket) => {
   socket.on('next-question', (data) => {
     const { gameCode } = data
     const room = gameRooms.get(gameCode)
-    
+
     if (!room || room.host !== socket.id) {
       return
     }
-    
+
     room.currentQuestionIndex++
     room.answers = {}
-    
+
     if (room.currentQuestionIndex >= room.quiz.questions.length) {
       // Game finished
       room.status = 'finished'
       const finalLeaderboard = getLeaderboard(room)
-      
+
       io.to(gameCode).emit('game-finished', {
         leaderboard: finalLeaderboard,
         totalQuestions: room.quiz.questions.length
       })
-      
+
       console.log(`Game ${gameCode} finished`)
       return
     }
-    
+
     // Start next question
     room.status = 'active'
     const currentQuestion = room.quiz.questions[room.currentQuestionIndex]
     room.questionStartTime = new Date()
-    
+
     const questionForPlayers = {
       id: currentQuestion.id,
       question: currentQuestion.question,
@@ -460,16 +485,16 @@ io.on('connection', (socket) => {
       questionNumber: room.currentQuestionIndex + 1,
       totalQuestions: room.quiz.questions.length
     }
-    
+
     io.to(gameCode).emit('new-question', questionForPlayers)
-    
+
     // Auto-advance after time limit
     setTimeout(() => {
       if (room.status === 'active' && room.currentQuestionIndex === room.currentQuestionIndex) {
         socket.emit('end-question', { gameCode })
       }
     }, currentQuestion.timeLimit * 1000)
-    
+
     console.log(`Next question started in game ${gameCode}`)
   })
 
@@ -480,7 +505,7 @@ io.on('connection', (socket) => {
     console.log('Received create-poll event:', data)
     const { poll, hostName } = data
     const pollCode = generateGameCode()
-    
+
     const room = {
       id: pollCode,
       poll: {
@@ -495,17 +520,17 @@ io.on('connection', (socket) => {
       votes: {},
       createdAt: new Date()
     }
-    
+
     pollRooms.set(pollCode, room)
     socket.join(pollCode)
-    
+
     console.log(`Poll created with code: ${pollCode}`)
-    
+
     socket.emit('poll-created', {
       pollCode,
       room
     })
-    
+
     console.log(`Poll created: ${pollCode}`)
   })
 
@@ -513,18 +538,18 @@ io.on('connection', (socket) => {
   socket.on('join-poll', (data) => {
     const { pollCode, participantName } = data
     const room = pollRooms.get(pollCode)
-    
+
     if (!room) {
       socket.emit('poll-join-error', { message: 'Poll not found' })
       return
     }
-    
+
     // Check if participant name already exists
     if (room.participants.some(p => p.name === participantName)) {
       socket.emit('poll-join-error', { message: 'Name already taken' })
       return
     }
-    
+
     const participant = {
       id: uuidv4(),
       name: participantName,
@@ -532,18 +557,18 @@ io.on('connection', (socket) => {
       hasVoted: false,
       socketId: socket.id
     }
-    
+
     room.participants.push(participant)
     participantSockets.set(participant.id, socket.id)
     socket.join(pollCode)
-    
+
     // Notify all participants and host
     io.to(pollCode).emit('participant-joined', {
       participant,
       participants: room.participants,
       participantCount: room.participants.length
     })
-    
+
     socket.emit('poll-join-success', {
       participant,
       room: {
@@ -559,7 +584,7 @@ io.on('connection', (socket) => {
         status: room.status
       }
     })
-    
+
     console.log(`Participant ${participantName} joined poll ${pollCode}`)
   })
 
@@ -568,29 +593,29 @@ io.on('connection', (socket) => {
     console.log('Received start-poll event:', data)
     const { pollCode } = data
     const room = pollRooms.get(pollCode)
-    
+
     console.log('Poll room found:', !!room)
     console.log('Host match:', room?.host === socket.id)
     console.log('Participants count:', room?.participants.length || 0)
-    
+
     if (!room || room.host !== socket.id) {
       console.log('Error: Unauthorized or poll not found')
       socket.emit('error', { message: 'Unauthorized or poll not found' })
       return
     }
-    
+
     room.status = 'active'
     room.votes = {}
-    
+
     // Reset participant voting status
     room.participants.forEach(p => p.hasVoted = false)
-    
+
     // Notify all participants
     io.to(pollCode).emit('poll-started', {
       status: room.status,
       poll: room.poll
     })
-    
+
     // Auto-close after time limit if set
     if (room.poll.timeLimit) {
       setTimeout(() => {
@@ -599,7 +624,7 @@ io.on('connection', (socket) => {
         }
       }, room.poll.timeLimit * 1000)
     }
-    
+
     console.log(`Poll ${pollCode} started`)
   })
 
@@ -607,34 +632,34 @@ io.on('connection', (socket) => {
   socket.on('submit-vote', (data) => {
     const { pollCode, participantId, selectedOptions } = data
     const room = pollRooms.get(pollCode)
-    
+
     if (!room || room.status !== 'active') {
       return
     }
-    
+
     // Validate vote
     if (!Array.isArray(selectedOptions) || selectedOptions.length === 0) {
       return
     }
-    
+
     // Check if multiple choices are allowed
     if (!room.poll.allowMultipleChoices && selectedOptions.length > 1) {
       return
     }
-    
+
     // Record the vote
     room.votes[participantId] = selectedOptions
-    
+
     // Update participant voting status
     const participant = room.participants.find(p => p.id === participantId)
     if (participant) {
       participant.hasVoted = true
     }
-    
+
     // Calculate current results
     const stats = new Array(room.poll.options.length).fill(0)
     let totalVotes = 0
-    
+
     for (const votes of Object.values(room.votes)) {
       for (const optionIndex of votes) {
         if (optionIndex >= 0 && optionIndex < stats.length) {
@@ -643,7 +668,7 @@ io.on('connection', (socket) => {
         }
       }
     }
-    
+
     // Notify host and participants of updated results
     const results = {
       pollId: room.poll.id,
@@ -656,9 +681,9 @@ io.on('connection', (socket) => {
       isAnonymous: room.poll.isAnonymous,
       votes: room.poll.isAnonymous ? {} : room.votes
     }
-    
+
     io.to(pollCode).emit('poll-results-updated', results)
-    
+
     console.log(`Participant ${participantId} voted in poll ${pollCode}`)
   })
 
@@ -666,17 +691,17 @@ io.on('connection', (socket) => {
   socket.on('close-poll', (data) => {
     const { pollCode } = data
     const room = pollRooms.get(pollCode)
-    
+
     if (!room || room.host !== socket.id) {
       return
     }
-    
+
     room.status = 'closed'
-    
+
     // Calculate final results
     const stats = new Array(room.poll.options.length).fill(0)
     let totalVotes = 0
-    
+
     for (const votes of Object.values(room.votes)) {
       for (const optionIndex of votes) {
         if (optionIndex >= 0 && optionIndex < stats.length) {
@@ -685,7 +710,7 @@ io.on('connection', (socket) => {
         }
       }
     }
-    
+
     const finalResults = {
       pollId: room.poll.id,
       question: room.poll.question,
@@ -697,9 +722,9 @@ io.on('connection', (socket) => {
       isAnonymous: room.poll.isAnonymous,
       votes: room.poll.isAnonymous ? {} : room.votes
     }
-    
+
     io.to(pollCode).emit('poll-closed', finalResults)
-    
+
     console.log(`Poll ${pollCode} closed`)
   })
 
@@ -707,12 +732,12 @@ io.on('connection', (socket) => {
   socket.on('get-poll-state', (data) => {
     const { pollCode } = data
     const room = pollRooms.get(pollCode)
-    
+
     if (!room) {
       socket.emit('error', { message: 'Poll not found' })
       return
     }
-    
+
     socket.emit('poll-state', {
       room: {
         id: room.id,
@@ -733,12 +758,12 @@ io.on('connection', (socket) => {
   socket.on('get-game-state', (data) => {
     const { gameCode } = data
     const room = gameRooms.get(gameCode)
-    
+
     if (!room) {
       socket.emit('error', { message: 'Game not found' })
       return
     }
-    
+
     socket.emit('game-state', {
       room: {
         id: room.id,
@@ -756,7 +781,7 @@ io.on('connection', (socket) => {
   // Handle disconnection
   socket.on('disconnect', (reason) => {
     console.log('User disconnected:', socket.id, 'Reason:', reason)
-    
+
     // Update connection stats
     const clientIP = socket.handshake.address
     connectionStats.activeConnections = Math.max(0, connectionStats.activeConnections - 1)
@@ -766,12 +791,12 @@ io.on('connection', (socket) => {
     } else {
       connectionStats.connectionsPerIP.delete(clientIP)
     }
-    
+
     // Clean up rate limiting data
     rateLimits.delete(socket.id)
-    
+
     console.log(`Connection stats: ${connectionStats.activeConnections}/${connectionStats.maxConnections} active`)
-    
+
     // Remove player from games and clean up
     for (const [gameCode, room] of gameRooms) {
       // If host disconnects, end the game
@@ -781,20 +806,20 @@ io.on('connection', (socket) => {
         console.log(`Game ${gameCode} ended due to host disconnect`)
         continue
       }
-      
+
       // If player disconnects, remove them from the room
       const playerIndex = room.players.findIndex(p => p.socketId === socket.id)
       if (playerIndex !== -1) {
         const player = room.players[playerIndex]
         room.players.splice(playerIndex, 1)
         playerSockets.delete(player.id)
-        
+
         io.to(gameCode).emit('player-left', {
           player,
           players: room.players,
           playerCount: room.players.length
         })
-        
+
         console.log(`Player ${player.name} left game ${gameCode}`)
       }
     }
@@ -808,20 +833,20 @@ io.on('connection', (socket) => {
         console.log(`Poll ${pollCode} ended due to host disconnect`)
         continue
       }
-      
+
       // If participant disconnects, remove them from the room
       const participantIndex = room.participants.findIndex(p => p.socketId === socket.id)
       if (participantIndex !== -1) {
         const participant = room.participants[participantIndex]
         room.participants.splice(participantIndex, 1)
         participantSockets.delete(participant.id)
-        
+
         io.to(pollCode).emit('participant-left', {
           participant,
           participants: room.participants,
           participantCount: room.participants.length
         })
-        
+
         console.log(`Participant ${participant.name} left poll ${pollCode}`)
       }
     }
