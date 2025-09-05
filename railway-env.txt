@@ -1,0 +1,11 @@
+# Railway Environment Variables - UPDATED
+# Project ID: 5f9dc8a5-eab0-42a1-b112-3d4c0ab09249
+# Vercel Domain: quizmaster-ivory.vercel.app
+
+NODE_ENV=production
+CLIENT_URL=https://quizmaster-ivory.vercel.app
+PORT=3001
+MAX_CONNECTIONS=50
+MAX_CONNECTIONS_PER_IP=5
+RATE_LIMIT_WINDOW=60000
+MAX_REQUESTS_PER_WINDOW=100
