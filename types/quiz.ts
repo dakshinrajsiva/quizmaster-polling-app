@@ -89,5 +89,6 @@ export interface PollResult {
   stats: number[] // count for each option
   totalVotes: number
   participantCount: number
+  votedCount: number // number of participants who have voted
   isAnonymous: boolean
 }
