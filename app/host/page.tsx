@@ -8,6 +8,9 @@ import { generateGameCode } from '@/lib/utils'
 import socketManager from '@/lib/socket-manager'
 import { v4 as uuidv4 } from 'uuid'
 
+// Force dynamic rendering
+export const dynamic = 'force-dynamic'
+
 export default function HostPage() {
   const router = useRouter()
   const [currentView, setCurrentView] = useState<'create' | 'lobby'>('create')

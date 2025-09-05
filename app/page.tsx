@@ -4,6 +4,9 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Play, Users, Trophy, Zap, BarChart3 } from 'lucide-react'
 
+// Force dynamic rendering
+export const dynamic = 'force-dynamic'
+
 export default function HomePage() {
   const router = useRouter()
   const [gameCode, setGameCode] = useState('')

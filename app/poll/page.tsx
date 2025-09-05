@@ -5,6 +5,9 @@ import { useRouter } from 'next/navigation'
 import { Plus, Trash2, Users, Clock, ArrowLeft, BarChart3, Eye, EyeOff } from 'lucide-react'
 import { Poll } from '@/types/quiz'
 import socketManager from '@/lib/socket-manager'
+
+// Force dynamic rendering
+export const dynamic = 'force-dynamic'
 import { v4 as uuidv4 } from 'uuid'
 
 export default function PollPage() {
