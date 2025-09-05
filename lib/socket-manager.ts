@@ -17,12 +17,6 @@ class SocketManager {
         transports: ['websocket', 'polling'],
         // Production optimizations
         upgrade: true,
-        // Polling configuration for production
-        polling: {
-          extraHeaders: {
-            'Cache-Control': 'no-cache'
-          }
-        },
         // Timeout configurations
         timeout: 20000,
         // Reconnection settings for production
@@ -31,12 +25,7 @@ class SocketManager {
         reconnectionDelayMax: 5000,
         reconnectionAttempts: 5,
         // Force long polling in unreliable networks
-        forceNew: false,
-        // Enable compression
-        compression: true,
-        // Heartbeat
-        pingTimeout: 60000,
-        pingInterval: 25000
+        forceNew: false
       })
 
       this.socket.on('connect', () => {
@@ -52,10 +41,7 @@ class SocketManager {
       this.socket.on('connect_error', (error) => {
         console.error('Socket.io connection error:', error)
         // Fallback to long polling if WebSocket fails
-        if (this.socket?.io.opts.transports?.includes('websocket')) {
-          console.log('Falling back to long polling...')
-          this.socket.io.opts.transports = ['polling']
-        }
+        console.log('Falling back to long polling...')
       })
 
       this.socket.on('disconnect', (reason) => {
