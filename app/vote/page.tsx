@@ -33,8 +33,9 @@ export default function BroadcastVotePage() {
       try {
         const pollData = JSON.parse(storedPoll)
         console.log('💾 Found poll data in localStorage:', pollData.question)
+        console.log('🎯 Immediately showing voting interface (no waiting screen)')
         setPoll(pollData)
-        setPollStatus('waiting') // Show join button
+        setPollStatus('active') // Skip waiting, go straight to voting interface
         localStorage.removeItem('currentPoll') // Clean up
       } catch (error) {
         console.error('❌ Error parsing stored poll data:', error)
@@ -46,13 +47,17 @@ export default function BroadcastVotePage() {
       console.log('🔌 Socket connected status:', socketInstance.connected)
       console.log('🌐 Socket URL:', (socketInstance as any).io.uri)
       
-      // Only request current poll if we don't have poll data from localStorage
-      if (!storedPoll) {
+      // Auto-join poll in background if we have localStorage data
+      if (storedPoll) {
+        console.log('💾 Using poll data from localStorage, auto-joining poll...')
+        setTimeout(() => {
+          console.log('🤝 Auto-joining broadcast poll in background...')
+          socketInstance.emit('join-broadcast-poll')
+        }, 500) // Small delay to ensure everything is set up
+      } else {
         console.log('🔍 No localStorage data, requesting current poll status...')
         socketInstance.emit('get-current-poll')
         console.log('📤 get-current-poll event emitted')
-      } else {
-        console.log('💾 Using poll data from localStorage, skipping get-current-poll')
       }
     })
 
@@ -80,19 +85,16 @@ export default function BroadcastVotePage() {
       console.log('✅ Successfully joined broadcast poll:', data)
       console.log('👤 Participant:', data.participant?.name)
       console.log('📊 Participant count:', data.participantCount)
-      console.log('📋 Poll data:', data.poll)
       
-      // Ensure we have the poll data
-      if (data.poll) {
-        setPoll(data.poll)
-        console.log('🎯 Poll question set:', data.poll.question)
-        console.log('📊 Poll options set:', data.poll.options)
-      }
-      
+      // Update participant info (poll data already set from localStorage)
       setParticipant(data.participant)
       setParticipantCount(data.participantCount)
-      setPollStatus('active')
-      console.log('✅ Status set to active - should show voting interface')
+      
+      // Ensure status is active (should already be from localStorage)
+      if (pollStatus !== 'active') {
+        setPollStatus('active')
+        console.log('✅ Status updated to active')
+      }
     })
 
     socketInstance.on('poll-join-error', (data: any) => {
@@ -209,8 +211,8 @@ export default function BroadcastVotePage() {
     return Math.max(...results.stats)
   }
 
-  // Waiting for poll to be broadcast
-  if (pollStatus === 'waiting' && !poll) {
+  // If no poll data available, show simple waiting message
+  if (!poll) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
         <div className="max-w-md w-full">
@@ -219,17 +221,13 @@ export default function BroadcastVotePage() {
               <div className="bg-secondary-100 p-4 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
                 <BarChart3 className="w-8 h-8 text-secondary-600" />
               </div>
-              <h1 className="text-2xl font-bold text-gray-800 mb-2">Waiting for Poll</h1>
-              <p className="text-gray-600">Waiting for the presenter to launch a poll...</p>
-            </div>
-
-            <div className="bg-blue-100 border border-blue-400 text-blue-700 px-4 py-3 rounded mb-4">
-              <p className="text-sm">You'll automatically join when a poll is launched!</p>
+              <h1 className="text-2xl font-bold text-gray-800 mb-2">No Active Poll</h1>
+              <p className="text-gray-600">Go back to home and wait for a poll to be launched.</p>
             </div>
 
             <button
               onClick={goBack}
-              className="text-gray-500 hover:text-gray-700 text-sm"
+              className="btn-secondary w-full"
             >
               ← Back to Home
             </button>
@@ -239,45 +237,8 @@ export default function BroadcastVotePage() {
     )
   }
 
-  // Poll available - show join button
-  if (pollStatus === 'waiting' && poll) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="max-w-md w-full">
-          <div className="card text-center">
-            <div className="mb-6">
-              <div className="bg-secondary-100 p-4 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-                <BarChart3 className="w-8 h-8 text-secondary-600" />
-              </div>
-              <h1 className="text-2xl font-bold text-gray-800 mb-2">Poll Available!</h1>
-              <p className="text-gray-600 mb-4">{poll.question}</p>
-              
-              <div className="text-sm text-gray-500 mb-6">
-                <p>Click "Join Poll" to participate in the voting</p>
-              </div>
-            </div>
-
-            <button
-              onClick={joinPoll}
-              className="btn-primary w-full text-lg mb-4"
-            >
-              Join Poll
-            </button>
-
-            <button
-              onClick={goBack}
-              className="text-gray-500 hover:text-gray-700 text-sm"
-            >
-              ← Back to Home
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // Active voting
-  if (pollStatus === 'active' && poll && poll.question && poll.options) {
+  // Show voting interface if we have poll data (regardless of status)
+  if (poll && poll.question && poll.options) {
     return (
       <div className="min-h-screen p-4">
         <div className="max-w-4xl mx-auto">
