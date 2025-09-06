@@ -30,7 +30,7 @@ export default function BroadcastVotePage() {
     socketInstance.on('connect', () => {
       console.log('✅ PARTICIPANT: Connected to server from /vote page with ID:', socketInstance.id)
       console.log('🔌 Socket connected status:', socketInstance.connected)
-      console.log('🌐 Socket URL:', socketInstance.io.uri)
+      console.log('🌐 Socket URL:', (socketInstance as any).io.uri)
       // Request current poll status when connected
       console.log('🔍 Requesting current poll status...')
       socketInstance.emit('get-current-poll')
