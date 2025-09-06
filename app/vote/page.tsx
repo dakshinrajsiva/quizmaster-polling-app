@@ -29,7 +29,9 @@ export default function BroadcastVotePage() {
 
     socketInstance.on('connect', () => {
       console.log('✅ PARTICIPANT: Connected to server from /vote page with ID:', socketInstance.id)
-      // Don't auto-join - wait for user to click "Join Poll"
+      // Request current poll status when connected
+      console.log('🔍 Requesting current poll status...')
+      socketInstance.emit('get-current-poll')
     })
 
     // Show join button when poll is broadcast
@@ -82,6 +84,22 @@ export default function BroadcastVotePage() {
       setPollStatus('closed')
     })
 
+    // Handle current poll response
+    socketInstance.on('current-poll-response', (data: any) => {
+      console.log('📋 Current poll response:', data)
+      if (data.poll && data.poll.status === 'active') {
+        console.log('🎯 Found active poll:', data.poll.question)
+        setPoll(data.poll)
+        setPollStatus('waiting')
+        if (data.poll.timeLimit) {
+          setTimeRemaining(data.poll.timeLimit)
+        }
+      } else {
+        console.log('❌ No active poll found')
+        setPollStatus('waiting')
+      }
+    })
+
     return () => {
       socketInstance.off('connect')
       socketInstance.off('poll-broadcast')
@@ -91,6 +109,7 @@ export default function BroadcastVotePage() {
       socketInstance.off('vote-error')
       socketInstance.off('poll-results-updated')
       socketInstance.off('poll-broadcast-closed')
+      socketInstance.off('current-poll-response')
     }
   }, [])
 

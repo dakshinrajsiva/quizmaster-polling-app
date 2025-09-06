@@ -563,6 +563,18 @@ io.on('connection', (socket) => {
     console.log(`✅ Poll "${globalPoll.question}" launched globally to ${io.engine.clientsCount} users`)
   })
   
+  // Get current poll status
+  socket.on('get-current-poll', () => {
+    console.log('📋 Current poll requested by:', socket.id)
+    if (globalPoll && globalPoll.status === 'active') {
+      console.log('📋 Sending current poll:', globalPoll.question)
+      socket.emit('current-poll-response', { poll: globalPoll })
+    } else {
+      console.log('📋 No active poll to send')
+      socket.emit('current-poll-response', { poll: null })
+    }
+  })
+
   // User joins the broadcast poll (auto-join)
   socket.on('join-broadcast-poll', () => {
     if (!globalPoll || globalPoll.status !== 'active') {
