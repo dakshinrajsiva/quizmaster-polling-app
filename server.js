@@ -15,7 +15,10 @@ const allowedOrigins = {
   ],
   production: [
     process.env.CLIENT_URL,
-    'https://quizmaster-6fskhlzqt-dakshin-raj-sivas-projects.vercel.app'
+    'https://quizmaster-6fskhlzqt-dakshin-raj-sivas-projects.vercel.app',
+    'https://quizmaster-bx3jjp997-dakshin-raj-sivas-projects.vercel.app',
+    'https://quizmaster-ivory.vercel.app',
+    'https://quizmaster-7iqxt45yp-dakshin-raj-sivas-projects.vercel.app'
   ].filter(Boolean)
 };
 
