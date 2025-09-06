@@ -527,6 +527,8 @@ io.on('connection', (socket) => {
       createdAt: new Date()
     }
     
+    console.log('🔄 GlobalPoll CREATED and stored in memory')
+    
     // Reset votes
     globalPollVotes = {}
     poll.options.forEach((_, index) => {
@@ -696,6 +698,7 @@ io.on('connection', (socket) => {
     
     // Reset global poll after a delay
     setTimeout(() => {
+      console.log('🧹 CLEARING GlobalPoll after poll closed')
       globalPoll = null
       globalPollParticipants.clear()
       globalPollVotes = {}
@@ -985,6 +988,12 @@ io.on('connection', (socket) => {
   // Handle disconnection
   socket.on('disconnect', (reason) => {
     console.log('User disconnected:', socket.id, 'Reason:', reason)
+    
+    // Check if this was the globalPoll host
+    if (globalPoll && globalPoll.host === socket.id) {
+      console.log('🚨 WARNING: GlobalPoll host disconnected! Keeping poll active for participants.')
+      // Don't clear globalPoll - let participants still join and vote
+    }
 
     // Update connection stats
     const clientIP = socket.handshake.address
