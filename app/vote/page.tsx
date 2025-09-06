@@ -29,6 +29,9 @@ export default function BroadcastVotePage() {
 
     socketInstance.on('connect', () => {
       console.log('✅ PARTICIPANT: Connected to server from /vote page with ID:', socketInstance.id)
+      // Auto-join broadcast poll when connected
+      console.log('👤 Auto-joining broadcast poll...')
+      socketInstance.emit('join-broadcast-poll')
     })
 
     // Auto-join when poll is broadcast

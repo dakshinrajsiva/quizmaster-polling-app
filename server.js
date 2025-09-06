@@ -586,6 +586,9 @@ io.on('connection', (socket) => {
     
     globalPollParticipants.set(socket.id, participant)
     
+    // Send the current poll data to the participant
+    socket.emit('poll-broadcast', { poll: globalPoll })
+    
     socket.emit('poll-join-success', {
       participant,
       poll: globalPoll,
