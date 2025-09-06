@@ -4,8 +4,5 @@
     "api/socket.js": {
       "maxDuration": 30
     }
-  },
-  "env": {
-    "NEXT_PUBLIC_SOCKET_URL": "@socket_url"
   }
 }
