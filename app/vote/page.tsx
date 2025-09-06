@@ -29,24 +29,18 @@ export default function BroadcastVotePage() {
 
     socketInstance.on('connect', () => {
       console.log('✅ PARTICIPANT: Connected to server from /vote page with ID:', socketInstance.id)
-      // Auto-join broadcast poll when connected
-      console.log('👤 Auto-joining broadcast poll...')
-      socketInstance.emit('join-broadcast-poll')
+      // Don't auto-join - wait for user to click "Join Poll"
     })
 
-    // Auto-join when poll is broadcast
+    // Show join button when poll is broadcast
     socketInstance.on('poll-broadcast', (data: any) => {
       console.log('🎯 PARTICIPANT: Poll broadcast received on VOTE page:', data)
       console.log('🎯 PARTICIPANT: Poll question:', data.poll?.question)
       console.log('🎯 PARTICIPANT: Poll options:', data.poll?.options)
-      console.log('🎯 PARTICIPANT: Setting poll status to active...')
+      console.log('🎯 PARTICIPANT: Setting poll status to waiting...')
       setPoll(data.poll)
-      setPollStatus('active')
+      setPollStatus('waiting') // Changed from 'active' to 'waiting'
       setError('')
-      
-      // Auto-join the broadcast poll
-      console.log('👤 Auto-joining broadcast poll...')
-      socketInstance.emit('join-broadcast-poll')
       
       // Set timer if applicable
       if (data.poll.timeLimit) {
@@ -136,6 +130,11 @@ export default function BroadcastVotePage() {
     })
   }
 
+  const joinPoll = () => {
+    console.log('👤 PARTICIPANT: Joining broadcast poll...')
+    socket?.emit('join-broadcast-poll')
+  }
+
   const goBack = () => {
     router.push('/')
   }
@@ -151,7 +150,7 @@ export default function BroadcastVotePage() {
   }
 
   // Waiting for poll to be broadcast
-  if (pollStatus === 'waiting' || !poll) {
+  if (pollStatus === 'waiting' && !poll) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
         <div className="max-w-md w-full">
@@ -167,6 +166,43 @@ export default function BroadcastVotePage() {
             <div className="bg-blue-100 border border-blue-400 text-blue-700 px-4 py-3 rounded mb-4">
               <p className="text-sm">You'll automatically join when a poll is launched!</p>
             </div>
+
+            <button
+              onClick={goBack}
+              className="text-gray-500 hover:text-gray-700 text-sm"
+            >
+              ← Back to Home
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Poll available - show join button
+  if (pollStatus === 'waiting' && poll) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="max-w-md w-full">
+          <div className="card text-center">
+            <div className="mb-6">
+              <div className="bg-secondary-100 p-4 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+                <BarChart3 className="w-8 h-8 text-secondary-600" />
+              </div>
+              <h1 className="text-2xl font-bold text-gray-800 mb-2">Poll Available!</h1>
+              <p className="text-gray-600 mb-4">{poll.question}</p>
+              
+              <div className="text-sm text-gray-500 mb-6">
+                <p>Click "Join Poll" to participate in the voting</p>
+              </div>
+            </div>
+
+            <button
+              onClick={joinPoll}
+              className="btn-primary w-full text-lg mb-4"
+            >
+              Join Poll
+            </button>
 
             <button
               onClick={goBack}
