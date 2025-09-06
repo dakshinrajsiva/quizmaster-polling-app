@@ -58,9 +58,19 @@ export default function BroadcastVotePage() {
       console.log('✅ Successfully joined broadcast poll:', data)
       console.log('👤 Participant:', data.participant?.name)
       console.log('📊 Participant count:', data.participantCount)
+      console.log('📋 Poll data:', data.poll)
+      
+      // Ensure we have the poll data
+      if (data.poll) {
+        setPoll(data.poll)
+        console.log('🎯 Poll question set:', data.poll.question)
+        console.log('📊 Poll options set:', data.poll.options)
+      }
+      
       setParticipant(data.participant)
       setParticipantCount(data.participantCount)
       setPollStatus('active')
+      console.log('✅ Status set to active - should show voting interface')
     })
 
     socketInstance.on('poll-join-error', (data: any) => {
@@ -245,7 +255,7 @@ export default function BroadcastVotePage() {
   }
 
   // Active voting
-  if (pollStatus === 'active') {
+  if (pollStatus === 'active' && poll && poll.question && poll.options) {
     return (
       <div className="min-h-screen p-4">
         <div className="max-w-4xl mx-auto">
@@ -390,6 +400,36 @@ export default function BroadcastVotePage() {
               className="btn-secondary w-full"
             >
               Back to Home
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Fallback case - if we're active but missing poll data
+  if (pollStatus === 'active') {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="max-w-md w-full">
+          <div className="card text-center">
+            <div className="mb-6">
+              <div className="bg-red-100 p-4 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+                <BarChart3 className="w-8 h-8 text-red-600" />
+              </div>
+              <h1 className="text-2xl font-bold text-gray-800 mb-2">Loading Poll...</h1>
+              <p className="text-gray-600">Getting poll data...</p>
+              <p className="text-sm text-gray-500 mt-2">Status: {pollStatus}</p>
+              <p className="text-sm text-gray-500">Poll: {poll ? 'Available' : 'Missing'}</p>
+              <p className="text-sm text-gray-500">Question: {poll?.question || 'Missing'}</p>
+              <p className="text-sm text-gray-500">Options: {poll?.options?.length || 0}</p>
+            </div>
+
+            <button
+              onClick={goBack}
+              className="text-gray-500 hover:text-gray-700 text-sm"
+            >
+              ← Back to Home
             </button>
           </div>
         </div>
