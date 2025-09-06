@@ -1,7 +1,6 @@
 import { Server } from 'socket.io'
 import { v4 as uuidv4 } from 'uuid'
 
-let io
 let globalPoll = null
 let globalPollParticipants = new Map()
 let globalPollVotes = {}
@@ -15,10 +14,12 @@ const connectionStats = {
 }
 
 export default function handler(req, res) {
-  if (!io) {
-    console.log('Starting Socket.IO server for Vercel...')
+  if (res.socket.server.io) {
+    console.log('Socket.io already running')
+  } else {
+    console.log('Starting Socket.io server for Vercel...')
     
-    io = new Server(res.socket.server, {
+    const io = new Server(res.socket.server, {
       path: '/api/socket',
       addTrailingSlash: false,
       cors: {
@@ -29,6 +30,8 @@ export default function handler(req, res) {
       transports: ['websocket', 'polling'],
       allowEIO3: true
     })
+
+    res.socket.server.io = io
 
     io.on('connection', (socket) => {
       console.log('User connected:', socket.id)
@@ -180,8 +183,6 @@ export default function handler(req, res) {
         }
       })
     })
-
-    res.socket.server.io = io
   }
   
   res.end()
