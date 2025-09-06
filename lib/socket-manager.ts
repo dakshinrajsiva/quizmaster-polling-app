@@ -9,9 +9,11 @@ class SocketManager {
   connect(): Socket {
     if (!this.socket) {
       const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001'
-      console.log('Creating new socket connection to', socketUrl)
+      const socketPath = process.env.NODE_ENV === 'production' ? '/api/socket' : '/socket.io/'
+      console.log('Creating new socket connection to', socketUrl, 'with path', socketPath)
       
       this.socket = io(socketUrl, {
+        path: socketPath,
         autoConnect: true,
         // Enable both transports with polling fallback
         transports: ['websocket', 'polling'],
