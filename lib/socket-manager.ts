@@ -8,8 +8,8 @@ class SocketManager {
 
   connect(): Socket {
     if (!this.socket) {
-      const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001'
-      const socketPath = process.env.NODE_ENV === 'production' ? '/api/socket.io/' : '/socket.io/'
+      const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'https://quizmaster-app-production.up.railway.app'
+      const socketPath = '/socket.io/'
       console.log('Creating new socket connection to', socketUrl, 'with path', socketPath)
       
       this.socket = io(socketUrl, {
