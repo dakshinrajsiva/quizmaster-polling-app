@@ -23,8 +23,13 @@ export default function BroadcastVotePage() {
   const [participantCount, setParticipantCount] = useState(0)
 
   useEffect(() => {
+    console.log('🔌 PARTICIPANT: Connecting to socket from /vote page...')
     const socketInstance = socketManager.connect()
     setSocket(socketInstance)
+
+    socketInstance.on('connect', () => {
+      console.log('✅ PARTICIPANT: Connected to server from /vote page with ID:', socketInstance.id)
+    })
 
     // Auto-join when poll is broadcast
     socketInstance.on('poll-broadcast', (data: any) => {
@@ -81,6 +86,7 @@ export default function BroadcastVotePage() {
     })
 
     return () => {
+      socketInstance.off('connect')
       socketInstance.off('poll-broadcast')
       socketInstance.off('poll-join-success')
       socketInstance.off('poll-join-error')
