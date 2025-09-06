@@ -44,16 +44,20 @@ export default function BroadcastVotePage() {
       console.log('✅ PARTICIPANT: Connected to server from /vote page with ID:', socketInstance.id)
       console.log('🔌 Socket connected status:', socketInstance.connected)
       
-      // Always try to join the poll when connected
+      // Always auto-join poll when connected - with longer delay
       console.log('🤝 Auto-joining broadcast poll on connect...')
-      console.log('📤 Emitting join-broadcast-poll event...')
-      socketInstance.emit('join-broadcast-poll')
+      setTimeout(() => {
+        console.log('📤 Emitting join-broadcast-poll event...')
+        socketInstance.emit('join-broadcast-poll')
+      }, 1000) // Increased delay to ensure server is ready
       
       // Also request current poll status if no localStorage data
       if (!storedPoll) {
         console.log('🔍 No localStorage data, requesting current poll status...')
-        socketInstance.emit('get-current-poll')
-        console.log('📤 get-current-poll event emitted')
+        setTimeout(() => {
+          socketInstance.emit('get-current-poll')
+          console.log('📤 get-current-poll event emitted')
+        }, 500)
       }
     })
 
@@ -76,15 +80,6 @@ export default function BroadcastVotePage() {
     socketInstance.on('poll-join-error', (data: any) => {
       console.log('❌ Failed to join poll:', data.message)
       setError(data.message)
-      
-      // Retry join after a short delay if it failed
-      if (data.message.includes('No active poll')) {
-        console.log('🔄 Retrying join in 2 seconds...')
-        setTimeout(() => {
-          console.log('🔄 Retry: Requesting current poll status...')
-          socketInstance.emit('get-current-poll')
-        }, 2000)
-      }
     })
 
     socketInstance.on('vote-submitted', (data: any) => {
@@ -116,20 +111,16 @@ export default function BroadcastVotePage() {
         console.log('🎯 Found active poll:', data.poll.question)
         setPoll(data.poll)
         setPollStatus('active') // Show voting interface immediately
-        setError('') // Clear any previous errors
-        
         if (data.poll.timeLimit) {
           setTimeRemaining(data.poll.timeLimit)
         }
-        
-        // Auto-join the poll if not already joined
-        if (!participant) {
-          console.log('👤 Auto-joining poll from current-poll-response...')
+        // Auto-join the poll
+        console.log('👤 Auto-joining poll from current-poll-response...')
+        setTimeout(() => {
           socketInstance.emit('join-broadcast-poll')
-        }
+        }, 200)
       } else {
-        console.log('❌ No active poll found in current-poll-response')
-        setError('No active poll available. Please wait for a poll to be launched.')
+        console.log('❌ No active poll found')
         setPollStatus('waiting')
       }
     })
@@ -182,39 +173,9 @@ export default function BroadcastVotePage() {
     console.log('🗳️ PARTICIPANT: Socket ID:', socket?.id)
     console.log('🗳️ PARTICIPANT: Participant joined:', !!participant)
 
-    // If not joined yet, join first then vote
-    if (!participant) {
-      console.log('🤝 Auto-joining before voting...')
-      
-      // Set up one-time listener for successful join
-      const handleJoinSuccess = (data: any) => {
-        console.log('✅ Joined successfully, now submitting vote...')
-        setParticipant(data.participant)
-        setParticipantCount(data.participantCount)
-        
-        // Submit vote after successful join
-        socket?.emit('submit-broadcast-vote', {
-          selectedOptions
-        })
-        
-        // Remove the one-time listener
-        socket?.off('poll-join-success', handleJoinSuccess)
-      }
-      
-      socket?.on('poll-join-success', handleJoinSuccess)
-      socket?.emit('join-broadcast-poll')
-    } else {
-      // Already joined, submit vote directly
-      socket?.emit('submit-broadcast-vote', {
-        selectedOptions
-      })
-    }
-  }
-
-  const joinPoll = () => {
-    console.log('👤 PARTICIPANT: Manually joining broadcast poll...')
-    setError('')
-    socket?.emit('join-broadcast-poll')
+    socket?.emit('submit-broadcast-vote', {
+      selectedOptions
+    })
   }
 
   const goBack = () => {
@@ -282,17 +243,11 @@ export default function BroadcastVotePage() {
                       ✅ Joined as {participant.name}
                     </div>
                   )}
-                   {!participant && (
-                     <div className="text-sm text-yellow-600">
-                       ⏳ Joining poll...
-                       <button
-                         onClick={joinPoll}
-                         className="ml-2 text-xs bg-yellow-600 hover:bg-yellow-700 text-white px-2 py-1 rounded"
-                       >
-                         Retry Join
-                       </button>
-                     </div>
-                   )}
+                  {!participant && (
+                    <div className="text-sm text-yellow-600">
+                      ⏳ Joining poll...
+                    </div>
+                  )}
                 </div>
               </div>
               <button
@@ -317,15 +272,15 @@ export default function BroadcastVotePage() {
 
             <div className="space-y-3 mb-6">
               {poll.options.map((option: string, index: number) => (
-                  <button
-                    key={index}
-                    onClick={() => toggleOption(index)}
-                    disabled={pollStatus !== 'active'} // Only disable if poll not active
-                    className={`w-full p-4 text-left border-2 rounded-lg transition-all ${
-                      selectedOptions.includes(index)
-                        ? 'border-secondary-500 bg-secondary-50'
-                        : 'border-gray-200 hover:border-secondary-300'
-                    } ${pollStatus !== 'active' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                <button
+                  key={index}
+                  onClick={() => toggleOption(index)}
+                  disabled={!participant} // Disable until joined
+                  className={`w-full p-4 text-left border-2 rounded-lg transition-all ${
+                    selectedOptions.includes(index)
+                      ? 'border-secondary-500 bg-secondary-50'
+                      : 'border-gray-200 hover:border-secondary-300'
+                  } ${!participant ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   <div className="flex items-center justify-between">
                     <span className="font-medium">{option}</span>
@@ -345,10 +300,10 @@ export default function BroadcastVotePage() {
 
             <button
               onClick={submitVote}
-              disabled={selectedOptions.length === 0 || pollStatus !== 'active'} // Only disable if no selection or poll not active
+              disabled={selectedOptions.length === 0 || !participant} // Disable until joined
               className="btn-primary w-full text-lg disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {pollStatus !== 'active' ? 'Poll Not Active' : 'Submit Vote'}
+              {!participant ? 'Joining Poll...' : 'Submit Vote'}
             </button>
           </div>
         </div>

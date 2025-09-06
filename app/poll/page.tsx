@@ -19,7 +19,7 @@ export default function PollPage() {
     options: ['', ''],
     allowMultipleChoices: false,
     isAnonymous: true,
-    timeLimit: undefined,
+    timeLimit: 300, // Default to 5 minutes instead of undefined
     createdAt: new Date(),
     createdBy: ''
   })
@@ -146,7 +146,7 @@ export default function PollPage() {
       options: ['', ''],
       allowMultipleChoices: false,
       isAnonymous: true,
-      timeLimit: undefined,
+      timeLimit: 300, // Default to 5 minutes
       createdAt: new Date(),
       createdBy: ''
     })
@@ -168,7 +168,7 @@ export default function PollPage() {
       options: ['JavaScript', 'Python', 'TypeScript', 'Go'],
       allowMultipleChoices: false,
       isAnonymous: true,
-      timeLimit: 60,
+      timeLimit: 300, // 5 minutes for demo
       createdAt: new Date(),
       createdBy: 'Poll Host'
     })
@@ -378,10 +378,11 @@ export default function PollPage() {
                   className="input-field"
                 >
                   <option value="">No time limit</option>
-                  <option value={30}>30 seconds</option>
-                  <option value={60}>1 minute</option>
                   <option value={120}>2 minutes</option>
-                  <option value={300}>5 minutes</option>
+                  <option value={300}>5 minutes (recommended)</option>
+                  <option value={600}>10 minutes</option>
+                  <option value={60}>1 minute</option>
+                  <option value={30}>30 seconds (testing only)</option>
                 </select>
               </div>
               

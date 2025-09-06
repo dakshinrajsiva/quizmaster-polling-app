@@ -140,7 +140,7 @@ function autoClosePoll() {
     globalPoll = null
     globalPollParticipants.clear()
     globalPollVotes = {}
-  }, 5000)
+  }, 30000) // Increased to 30 seconds
 }
 
 // Connection validation
@@ -413,6 +413,12 @@ io.on('connection', (socket) => {
       return
     }
     
+    // Check if poll was just launched (prevent accidental immediate closure)
+    const timeSinceLaunch = new Date() - new Date(globalPoll.startedAt || globalPoll.createdAt)
+    if (timeSinceLaunch < 10000) { // Less than 10 seconds
+      console.log('⚠️ WARNING: Poll closed very quickly after launch (', timeSinceLaunch, 'ms)')
+    }
+    
     console.log('🛑 PROCEEDING: Closing broadcast poll')
     
     globalPoll.status = 'closed'
@@ -442,13 +448,13 @@ io.on('connection', (socket) => {
     console.log(`🏁 Broadcast poll "${globalPoll.question}" closed with final results`)
     console.log(`📊 Final Results:`, finalResults)
     
-    // Reset global poll after a delay
+    // Reset global poll after a longer delay to allow final result viewing
     setTimeout(() => {
       console.log('🧹 CLEARING GlobalPoll after poll closed')
       globalPoll = null
       globalPollParticipants.clear()
       globalPollVotes = {}
-    }, 5000)
+    }, 30000) // Increased to 30 seconds
   })
 
   // Handle disconnection
