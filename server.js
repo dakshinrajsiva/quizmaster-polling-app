@@ -671,10 +671,18 @@ io.on('connection', (socket) => {
   
   // Host closes the broadcast poll
   socket.on('close-broadcast-poll', () => {
+    console.log('🛑 CLOSE-BROADCAST-POLL event received from:', socket.id)
+    console.log('🛑 GlobalPoll exists:', !!globalPoll)
+    console.log('🛑 GlobalPoll host:', globalPoll?.host)
+    console.log('🛑 Socket is host:', globalPoll?.host === socket.id)
+    
     if (!globalPoll || globalPoll.host !== socket.id) {
+      console.log('🛑 DENIED: Not authorized to close poll')
       socket.emit('error', { message: 'Not authorized to close poll' })
       return
     }
+    
+    console.log('🛑 PROCEEDING: Closing broadcast poll')
     
     globalPoll.status = 'closed'
     
