@@ -20,7 +20,6 @@ export default function handler(req, res) {
     console.log('Starting Socket.io server for Vercel...')
     
     const io = new Server(res.socket.server, {
-      path: '/api/socket',
       addTrailingSlash: false,
       cors: {
         origin: "*",
