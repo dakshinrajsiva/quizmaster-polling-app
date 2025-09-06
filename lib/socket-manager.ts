@@ -25,7 +25,7 @@ class SocketManager {
         reconnectionDelayMax: 5000,
         reconnectionAttempts: 5,
         // Force long polling in unreliable networks
-        forceNew: false
+        forceNew: true
       })
 
       this.socket.on('connect', () => {

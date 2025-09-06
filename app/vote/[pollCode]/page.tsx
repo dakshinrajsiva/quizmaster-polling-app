@@ -17,7 +17,6 @@ export default function VotePage() {
   
   const [socket, setSocket] = useState<any>(null)
   const [pollStatus, setPollStatus] = useState<'joining' | 'waiting' | 'active' | 'voted' | 'closed'>('joining')
-  const [participantName, setParticipantName] = useState('')
   const [participant, setParticipant] = useState<Participant | null>(null)
   const [participants, setParticipants] = useState<Participant[]>([])
   const [poll, setPoll] = useState<any>(null)
@@ -100,14 +99,8 @@ export default function VotePage() {
   }, [pollStatus, timeRemaining])
 
   const joinPoll = () => {
-    if (!participantName.trim()) {
-      setError('Please enter your name')
-      return
-    }
-
     socket?.emit('join-poll', {
-      pollCode: pollCode.toUpperCase(),
-      participantName: participantName.trim()
+      pollCode: pollCode.toUpperCase()
     })
   }
 
@@ -173,19 +166,13 @@ export default function VotePage() {
             )}
 
             <div className="space-y-4">
-              <input
-                type="text"
-                placeholder="Enter your name"
-                value={participantName}
-                onChange={(e) => setParticipantName(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && joinPoll()}
-                className="input-field text-center text-lg"
-                maxLength={20}
-              />
+              <div className="text-center text-gray-600 mb-4">
+                <p>Click below to join the poll anonymously</p>
+                <p className="text-sm text-gray-500">You'll be identified by your session</p>
+              </div>
               <button
                 onClick={joinPoll}
-                disabled={!participantName.trim()}
-                className="btn-primary w-full text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                className="btn-primary w-full text-lg"
               >
                 Join Poll
               </button>

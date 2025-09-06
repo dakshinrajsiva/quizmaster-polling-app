@@ -68,15 +68,15 @@ const participantSockets = new Map() // participantId -> socketId
 const connectionStats = {
   totalConnections: 0,
   activeConnections: 0,
-  maxConnections: 50, // Limit for 30+ users with some buffer
+  maxConnections: 200, // Increased for testing - can handle more users
   connectionsPerIP: new Map(),
-  maxConnectionsPerIP: 5
+  maxConnectionsPerIP: 50 // Increased for testing multiple tabs from same IP
 }
 
-// Rate limiting
+// Rate limiting (relaxed for testing)
 const rateLimits = new Map() // socketId -> { requests: [], lastReset: timestamp }
 const RATE_LIMIT_WINDOW = 60000 // 1 minute
-const MAX_REQUESTS_PER_WINDOW = 100 // Max requests per minute per connection
+const MAX_REQUESTS_PER_WINDOW = 500 // Increased for testing - Max requests per minute per connection
 
 // Connection cleanup interval
 setInterval(() => {
@@ -252,7 +252,7 @@ io.on('connection', (socket) => {
 
   // Player joins a game
   socket.on('join-game', (data) => {
-    const { gameCode, playerName } = data
+    const { gameCode } = data
     const room = gameRooms.get(gameCode)
 
     if (!room) {
@@ -265,15 +265,15 @@ io.on('connection', (socket) => {
       return
     }
 
-    // Check if player name already exists
-    if (room.players.some(p => p.name === playerName)) {
-      socket.emit('join-error', { message: 'Player name already taken' })
+    // Check if this socket is already in the game (prevent duplicates)
+    if (room.players.some(p => p.socketId === socket.id)) {
+      socket.emit('join-error', { message: 'You are already in this game' })
       return
     }
 
     const player = {
       id: uuidv4(),
-      name: playerName,
+      name: `Player ${room.players.length + 1}`, // Anonymous player name
       score: 0,
       socketId: socket.id,
       joinedAt: new Date()
@@ -300,7 +300,7 @@ io.on('connection', (socket) => {
       }
     })
 
-    console.log(`Player ${playerName} joined game ${gameCode}`)
+    console.log(`Player ${player.name} (${socket.id}) joined game ${gameCode}`)
   })
 
   // Host starts the game
@@ -498,7 +498,185 @@ io.on('connection', (socket) => {
     console.log(`Next question started in game ${gameCode}`)
   })
 
-  // POLLING SYSTEM EVENTS
+  // BROADCAST POLLING SYSTEM EVENTS
+  
+  // Global poll state (only one active poll at a time)
+  let globalPoll = null
+  let globalPollParticipants = new Map() // socketId -> participant info
+  let globalPollVotes = {} // optionIndex -> count
+  
+  // Host creates a broadcast poll
+  socket.on('create-broadcast-poll', (data) => {
+    console.log('🎯 Received create-broadcast-poll event:', data)
+    const { poll, hostName } = data
+    
+    globalPoll = {
+      ...poll,
+      id: uuidv4(),
+      host: socket.id,
+      hostName,
+      status: 'created',
+      createdAt: new Date()
+    }
+    
+    // Reset votes
+    globalPollVotes = {}
+    poll.options.forEach((_, index) => {
+      globalPollVotes[index] = 0
+    })
+    
+    console.log('✅ Broadcast poll created:', globalPoll.question)
+    console.log('🎮 Host socket ID:', socket.id)
+    console.log('📊 Poll options:', globalPoll.options)
+    
+    socket.emit('broadcast-poll-created', {
+      poll: globalPoll
+    })
+  })
+  
+  // Host launches the poll (broadcasts to everyone)
+  socket.on('launch-broadcast-poll', (data) => {
+    console.log('🚀 Launch broadcast poll requested by:', socket.id)
+    console.log('🔍 Current globalPoll:', globalPoll ? globalPoll.question : 'None')
+    console.log('👤 GlobalPoll host:', globalPoll ? globalPoll.host : 'None')
+    
+    if (!globalPoll || globalPoll.host !== socket.id) {
+      console.log('❌ Launch denied - No poll or not authorized')
+      socket.emit('error', { message: 'No poll to launch or not authorized' })
+      return
+    }
+    
+    globalPoll.status = 'active'
+    globalPollParticipants.clear()
+    
+    console.log('📡 Broadcasting poll to ALL connected users:', globalPoll.question)
+    console.log('👥 Connected sockets:', io.engine.clientsCount)
+    
+    // Broadcast to ALL connected users
+    io.emit('poll-broadcast', {
+      poll: globalPoll
+    })
+    
+    console.log(`✅ Poll "${globalPoll.question}" launched globally to ${io.engine.clientsCount} users`)
+  })
+  
+  // User joins the broadcast poll (auto-join)
+  socket.on('join-broadcast-poll', () => {
+    if (!globalPoll || globalPoll.status !== 'active') {
+      socket.emit('poll-join-error', { message: 'No active poll' })
+      return
+    }
+    
+    // Check if already joined
+    if (globalPollParticipants.has(socket.id)) {
+      socket.emit('poll-join-error', { message: 'Already joined' })
+      return
+    }
+    
+    const participant = {
+      id: uuidv4(),
+      name: `Participant ${globalPollParticipants.size + 1}`,
+      socketId: socket.id,
+      hasVoted: false,
+      joinedAt: new Date()
+    }
+    
+    globalPollParticipants.set(socket.id, participant)
+    
+    socket.emit('poll-join-success', {
+      participant,
+      poll: globalPoll,
+      participantCount: globalPollParticipants.size
+    })
+    
+    console.log(`${participant.name} joined broadcast poll`)
+  })
+  
+  // User votes in broadcast poll
+  socket.on('submit-broadcast-vote', (data) => {
+    const { selectedOptions } = data
+    
+    if (!globalPoll || globalPoll.status !== 'active') {
+      socket.emit('vote-error', { message: 'No active poll' })
+      return
+    }
+    
+    const participant = globalPollParticipants.get(socket.id)
+    if (!participant) {
+      socket.emit('vote-error', { message: 'Not joined in poll' })
+      return
+    }
+    
+    if (participant.hasVoted) {
+      socket.emit('vote-error', { message: 'Already voted' })
+      return
+    }
+    
+    // Record votes
+    selectedOptions.forEach(optionIndex => {
+      if (optionIndex >= 0 && optionIndex < globalPoll.options.length) {
+        globalPollVotes[optionIndex] = (globalPollVotes[optionIndex] || 0) + 1
+      }
+    })
+    
+    participant.hasVoted = true
+    participant.vote = selectedOptions
+    
+    // Calculate results
+    const totalVotes = Object.values(globalPollVotes).reduce((sum, count) => sum + count, 0)
+    const results = {
+      question: globalPoll.question,
+      options: globalPoll.options,
+      stats: globalPoll.options.map((_, index) => globalPollVotes[index] || 0),
+      totalVotes,
+      participantCount: globalPollParticipants.size
+    }
+    
+    // Send vote confirmation to voter
+    socket.emit('vote-submitted', { results })
+    
+    // Broadcast updated results to everyone (including host)
+    io.emit('poll-results-updated', results)
+    
+    console.log(`Vote submitted by ${participant.name}`)
+  })
+  
+  // Host closes the broadcast poll
+  socket.on('close-broadcast-poll', () => {
+    if (!globalPoll || globalPoll.host !== socket.id) {
+      socket.emit('error', { message: 'Not authorized to close poll' })
+      return
+    }
+    
+    globalPoll.status = 'closed'
+    
+    const totalVotes = Object.values(globalPollVotes).reduce((sum, count) => sum + count, 0)
+    const finalResults = {
+      question: globalPoll.question,
+      options: globalPoll.options,
+      stats: globalPoll.options.map((_, index) => globalPollVotes[index] || 0),
+      totalVotes,
+      participantCount: globalPollParticipants.size
+    }
+    
+    // Send final results to presenter first
+    socket.emit('poll-final-results', finalResults)
+    
+    // Broadcast poll closed to everyone
+    io.emit('poll-broadcast-closed', finalResults)
+    
+    console.log(`🏁 Broadcast poll "${globalPoll.question}" closed with final results`)
+    console.log(`📊 Final Results:`, finalResults)
+    
+    // Reset global poll after a delay
+    setTimeout(() => {
+      globalPoll = null
+      globalPollParticipants.clear()
+      globalPollVotes = {}
+    }, 5000)
+  })
+
+  // ORIGINAL POLLING SYSTEM EVENTS (keeping for backward compatibility)
 
   // Host creates a new poll
   socket.on('create-poll', (data) => {
@@ -536,7 +714,7 @@ io.on('connection', (socket) => {
 
   // Participant joins a poll
   socket.on('join-poll', (data) => {
-    const { pollCode, participantName } = data
+    const { pollCode } = data
     const room = pollRooms.get(pollCode)
 
     if (!room) {
@@ -544,15 +722,15 @@ io.on('connection', (socket) => {
       return
     }
 
-    // Check if participant name already exists
-    if (room.participants.some(p => p.name === participantName)) {
-      socket.emit('poll-join-error', { message: 'Name already taken' })
+    // Check if this socket is already in the poll (prevent duplicates)
+    if (room.participants.some(p => p.socketId === socket.id)) {
+      socket.emit('poll-join-error', { message: 'You are already in this poll' })
       return
     }
 
     const participant = {
       id: uuidv4(),
-      name: participantName,
+      name: `Participant ${room.participants.length + 1}`, // Anonymous participant name
       joinedAt: new Date(),
       hasVoted: false,
       socketId: socket.id
@@ -585,7 +763,7 @@ io.on('connection', (socket) => {
       }
     })
 
-    console.log(`Participant ${participantName} joined poll ${pollCode}`)
+    console.log(`Participant ${participant.name} (${socket.id}) joined poll ${pollCode}`)
   })
 
   // Host starts the poll

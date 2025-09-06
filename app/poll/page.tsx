@@ -12,7 +12,7 @@ import { v4 as uuidv4 } from 'uuid'
 
 export default function PollPage() {
   const router = useRouter()
-  const [currentView, setCurrentView] = useState<'create' | 'lobby'>('create')
+  const [currentView, setCurrentView] = useState<'create' | 'ready' | 'results'>('create')
   const [poll, setPoll] = useState<Poll>({
     id: '',
     question: '',
@@ -23,33 +23,46 @@ export default function PollPage() {
     createdAt: new Date(),
     createdBy: ''
   })
-  const [pollCode, setPollCode] = useState('')
-  const [participants, setParticipants] = useState<any[]>([])
+  const [pollReady, setPollReady] = useState(false)
+  const [pollActive, setPollActive] = useState(false)
+  const [pollResults, setPollResults] = useState<any>(null)
   const [socket, setSocket] = useState<any>(null)
 
   useEffect(() => {
+    console.log('🎤 PRESENTER: Connecting to socket...')
+    // Force disconnect any existing connection to ensure fresh connection
+    socketManager.disconnect()
     const socketInstance = socketManager.connect()
     setSocket(socketInstance)
 
-    socketInstance.on('poll-created', (data: any) => {
-      console.log('Poll created:', data)
-      setPollCode(data.pollCode)
-      socketManager.setGameCode(data.pollCode)
-      setCurrentView('lobby')
+    socketInstance.on('broadcast-poll-created', (data: any) => {
+      console.log('Broadcast poll created:', data)
+      setPollReady(true)
+      setCurrentView('ready')
     })
 
-    socketInstance.on('participant-joined', (data: any) => {
-      setParticipants(data.participants)
+    socketInstance.on('poll-results-updated', (data: any) => {
+      console.log('📊 Poll results updated:', data)
+      setPollResults(data)
     })
 
-    socketInstance.on('participant-left', (data: any) => {
-      setParticipants(data.participants)
+    socketInstance.on('poll-final-results', (data: any) => {
+      console.log('🏆 Final results received for presenter:', data)
+      setPollResults(data)
+      setPollActive(false)
+      setCurrentView('results')
+    })
+
+    socketInstance.on('poll-broadcast-closed', (data: any) => {
+      console.log('🏁 Poll closed with final results:', data)
+      // This is for participants, presenter gets poll-final-results
     })
 
     return () => {
-      socketInstance.off('poll-created')
-      socketInstance.off('participant-joined')
-      socketInstance.off('participant-left')
+      socketInstance.off('broadcast-poll-created')
+      socketInstance.off('poll-results-updated')
+      socketInstance.off('poll-final-results')
+      socketInstance.off('poll-broadcast-closed')
     }
   }, [])
 
@@ -79,7 +92,7 @@ export default function PollPage() {
   }
 
   const createPoll = () => {
-    console.log('Create poll clicked')
+    console.log('Create broadcast poll clicked')
     console.log('Poll state:', poll)
     
     if (!poll.question.trim()) {
@@ -93,8 +106,8 @@ export default function PollPage() {
       return
     }
 
-    console.log('Emitting create-poll event')
-    socket?.emit('create-poll', {
+    console.log('Emitting create-broadcast-poll event')
+    socket?.emit('create-broadcast-poll', {
       poll: {
         ...poll,
         id: uuidv4(),
@@ -105,20 +118,44 @@ export default function PollPage() {
     })
   }
 
-  const startPoll = () => {
-    if (participants.length === 0) {
-      alert('Wait for participants to join before starting')
-      return
-    }
-    
-    router.push(`/poll/${pollCode}`)
+  const launchPoll = () => {
+    console.log('🚀 PRESENTER: Launch poll clicked')
+    console.log('🔌 PRESENTER: Socket connected:', socket?.connected)
+    console.log('🎯 PRESENTER: Current poll question:', poll.question)
+    console.log('📡 PRESENTER: Emitting launch-broadcast-poll event...')
+    socket?.emit('launch-broadcast-poll')
+    setPollActive(true)
+    console.log('✅ PRESENTER: Poll launched! Waiting for participants...')
+  }
+
+  const closePoll = () => {
+    console.log('🛑 Close poll clicked')
+    socket?.emit('close-broadcast-poll')
+    setPollActive(false)
+    // Don't reset immediately - wait for final results
+  }
+
+  const resetPoll = () => {
+    setPollReady(false)
+    setPollActive(false)
+    setCurrentView('create')
+    // Reset poll
+    setPoll({
+      id: '',
+      question: '',
+      options: ['', ''],
+      allowMultipleChoices: false,
+      isAnonymous: true,
+      timeLimit: undefined,
+      createdAt: new Date(),
+      createdBy: ''
+    })
+    setPollResults(null)
   }
 
   const goBack = () => {
-    if (currentView === 'lobby') {
-      setCurrentView('create')
-      setPollCode('')
-      setParticipants([])
+    if (currentView === 'ready' || currentView === 'results') {
+      resetPoll()
     } else {
       router.push('/')
     }
@@ -137,7 +174,7 @@ export default function PollPage() {
     })
   }
 
-  if (currentView === 'lobby') {
+  if (currentView === 'ready') {
     return (
       <div className="min-h-screen p-4">
         <div className="max-w-4xl mx-auto">
@@ -172,67 +209,112 @@ export default function PollPage() {
             <div></div>
           </div>
 
-          {/* Poll Code */}
-          <div className="card text-center mb-8 animate-pulse-glow">
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">Poll Code</h2>
-            <div className="bg-gradient-to-r from-primary-500 to-secondary-500 text-white text-6xl font-bold py-6 px-8 rounded-lg inline-block tracking-widest">
-              {pollCode}
+          {/* Poll Ready Display */}
+          <div className="card text-center mb-8">
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">📡 Broadcast Poll Ready</h2>
+            <div className="bg-gradient-to-r from-green-500 to-blue-500 text-white text-2xl font-bold py-6 px-8 rounded-lg inline-block">
+              When you launch, this poll will appear on everyone's screen instantly!
             </div>
-            <p className="text-gray-600 mt-4">Share this code with your participants</p>
+            <div className="flex gap-4 justify-center mt-6">
+              {!pollActive ? (
+                <button
+                  onClick={launchPoll}
+                  className="btn-success text-lg px-8 py-3"
+                >
+                  🚀 Launch Poll to Everyone
+                </button>
+              ) : (
+                <button
+                  onClick={closePoll}
+                  className="btn-danger text-lg px-8 py-3"
+                >
+                  🛑 Close Poll
+                </button>
+              )}
+            </div>
           </div>
 
-          {/* Participants */}
+          {/* Poll Status and Results */}
           <div className="grid md:grid-cols-2 gap-8">
             <div className="card">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-bold text-gray-800">Participants</h3>
-                <div className="flex items-center text-primary-600">
-                  <Users className="w-5 h-5 mr-2" />
-                  <span className="font-semibold">{participants.length}</span>
-                </div>
-              </div>
+              <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                <BarChart3 className="w-5 h-5 mr-2" />
+                Poll Status
+              </h3>
               
-              <div className="space-y-3 max-h-64 overflow-y-auto">
-                {participants.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                    <p>Waiting for participants to join...</p>
+              <div className="space-y-4">
+                <div className={`p-4 rounded-lg border-2 ${
+                  pollActive 
+                    ? 'bg-green-50 border-green-200 text-green-800'
+                    : 'bg-yellow-50 border-yellow-200 text-yellow-800'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">
+                      {pollActive ? '🟢 Poll is LIVE' : '🟡 Poll Ready to Launch'}
+                    </span>
+                    {pollResults && (
+                      <span className="text-sm">
+                        {pollResults.participantCount} participants, {pollResults.totalVotes} votes
+                      </span>
+                    )}
                   </div>
-                ) : (
-                  participants.map((participant) => (
-                    <div key={participant.id} className="flex items-center p-3 bg-gray-50 rounded-lg animate-slide-up">
-                      <div className="w-10 h-10 bg-gradient-to-r from-primary-500 to-secondary-500 rounded-full flex items-center justify-center text-white font-bold mr-3">
-                        {participant.name.charAt(0).toUpperCase()}
-                      </div>
-                      <span className="font-medium text-gray-800">{participant.name}</span>
-                      {participant.hasVoted && (
-                        <span className="ml-auto text-green-600 text-sm">✓ Voted</span>
-                      )}
-                    </div>
-                  ))
+                </div>
+                
+                {pollActive && (
+                  <div className="bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded-lg">
+                    <p className="text-sm">
+                      📱 Poll is now visible on everyone's screens!<br />
+                      Results will update here in real-time.
+                    </p>
+                  </div>
                 )}
               </div>
             </div>
 
-            {/* Poll Preview */}
+            {/* Poll Preview/Results */}
             <div className="card">
-              <h3 className="text-xl font-bold text-gray-800 mb-6">Poll Preview</h3>
-              <div className="space-y-3">
-                {poll.options.map((option, index) => (
-                  <div key={index} className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-                    <span className="font-medium text-gray-800">{option}</span>
-                  </div>
-                ))}
-              </div>
-
-              <button
-                onClick={startPoll}
-                disabled={participants.length === 0}
-                className="btn-success w-full mt-6 text-lg disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <BarChart3 className="w-5 h-5 mr-2 inline" />
-                Start Poll
-              </button>
+              <h3 className="text-xl font-bold text-gray-800 mb-4">
+                {pollResults ? 'Live Results' : 'Poll Preview'}
+              </h3>
+              
+              {pollResults ? (
+                <div className="space-y-4">
+                  {pollResults.options.map((option: string, index: number) => {
+                    const votes = pollResults.stats[index] || 0
+                    const percentage = pollResults.totalVotes > 0 
+                      ? Math.round((votes / pollResults.totalVotes) * 100) 
+                      : 0
+                    const isMax = votes === Math.max(...pollResults.stats) && votes > 0
+                    
+                    return (
+                      <div key={index} className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="font-medium">{option}</span>
+                          <span className="text-sm text-gray-600">
+                            {votes} votes ({percentage}%)
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-3">
+                          <div
+                            className={`h-3 rounded-full transition-all duration-500 ${
+                              isMax ? 'bg-secondary-600' : 'bg-secondary-400'
+                            }`}
+                            style={{ width: `${percentage}%` }}
+                          />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {poll.options.map((option, index) => (
+                    <div key={index} className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                      <span className="font-medium text-gray-800">{option}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -382,4 +464,114 @@ export default function PollPage() {
       </div>
     </div>
   )
+
+  // Final Results View
+  if (currentView === 'results') {
+    return (
+      <div className="min-h-screen p-4">
+        <div className="max-w-4xl mx-auto">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-8">
+            <button
+              onClick={goBack}
+              className="flex items-center text-gray-600 hover:text-gray-800 transition-colors"
+            >
+              <ArrowLeft className="w-5 h-5 mr-2" />
+              Create New Poll
+            </button>
+            <div className="text-center">
+              <h1 className="text-3xl font-bold text-gray-800 mb-2">🏁 Final Results</h1>
+              <p className="text-gray-600">{poll.question}</p>
+            </div>
+            <div></div>
+          </div>
+
+          {/* Final Results Display */}
+          <div className="card mb-8">
+            <div className="text-center mb-6">
+              <div className="bg-green-100 p-4 rounded-lg border-2 border-green-200 mb-4">
+                <h2 className="text-2xl font-bold text-green-800 mb-2">🎆 Poll Completed!</h2>
+                <div className="grid grid-cols-2 gap-4 text-green-700">
+                  <div>
+                    <span className="font-bold text-lg">{pollResults?.participantCount || 0}</span>
+                    <p className="text-sm">Total Participants</p>
+                  </div>
+                  <div>
+                    <span className="font-bold text-lg">{pollResults?.totalVotes || 0}</span>
+                    <p className="text-sm">Total Votes</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Results Chart */}
+            <div className="space-y-6">
+              {pollResults?.options.map((option: string, index: number) => {
+                const votes = pollResults.stats[index] || 0
+                const percentage = pollResults.totalVotes > 0 
+                  ? Math.round((votes / pollResults.totalVotes) * 100) 
+                  : 0
+                const isWinner = votes === Math.max(...pollResults.stats) && votes > 0
+                
+                return (
+                  <div key={index} className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-3">
+                        {isWinner && votes > 0 && (
+                          <span className="text-2xl">🏆</span>
+                        )}
+                        <span className={`text-lg font-semibold ${
+                          isWinner ? 'text-yellow-600' : 'text-gray-800'
+                        }`}>
+                          {option}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-xl font-bold text-gray-800">
+                          {votes} votes
+                        </span>
+                        <span className={`block text-sm ${
+                          isWinner ? 'text-yellow-600 font-semibold' : 'text-gray-600'
+                        }`}>
+                          {percentage}%
+                        </span>
+                      </div>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-4">
+                      <div
+                        className={`h-4 rounded-full transition-all duration-1000 ${
+                          isWinner 
+                            ? 'bg-gradient-to-r from-yellow-400 to-yellow-600' 
+                            : 'bg-gradient-to-r from-secondary-400 to-secondary-600'
+                        }`}
+                        style={{ width: `${percentage}%` }}
+                      />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-4 justify-center mt-8 pt-6 border-t border-gray-200">
+              <button
+                onClick={resetPoll}
+                className="btn-success px-8 py-3 text-lg"
+              >
+                🎆 Create Another Poll
+              </button>
+              <button
+                onClick={() => router.push('/')}
+                className="btn-secondary px-8 py-3 text-lg"
+              >
+                🏠 Back to Home
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return null
 }

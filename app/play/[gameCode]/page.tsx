@@ -17,7 +17,6 @@ export default function PlayGamePage() {
   
   const [socket, setSocket] = useState<any>(null)
   const [gameStatus, setGameStatus] = useState<'joining' | 'waiting' | 'active' | 'answered' | 'results' | 'finished'>('joining')
-  const [playerName, setPlayerName] = useState('')
   const [player, setPlayer] = useState<Player | null>(null)
   const [players, setPlayers] = useState<Player[]>([])
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null)
@@ -109,14 +108,8 @@ export default function PlayGamePage() {
   }, [gameStatus, timeRemaining])
 
   const joinGame = () => {
-    if (!playerName.trim()) {
-      setError('Please enter your name')
-      return
-    }
-
     socket?.emit('join-game', {
-      gameCode: gameCode.toUpperCase(),
-      playerName: playerName.trim()
+      gameCode: gameCode.toUpperCase()
     })
   }
 
@@ -165,19 +158,13 @@ export default function PlayGamePage() {
             )}
 
             <div className="space-y-4">
-              <input
-                type="text"
-                placeholder="Enter your name"
-                value={playerName}
-                onChange={(e) => setPlayerName(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && joinGame()}
-                className="input-field text-center text-lg"
-                maxLength={20}
-              />
+              <div className="text-center text-gray-600 mb-4">
+                <p>Click below to join the quiz anonymously</p>
+                <p className="text-sm text-gray-500">You'll be identified by your session</p>
+              </div>
               <button
                 onClick={joinGame}
-                disabled={!playerName.trim()}
-                className="btn-primary w-full text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                className="btn-primary w-full text-lg"
               >
                 Join Game
               </button>
