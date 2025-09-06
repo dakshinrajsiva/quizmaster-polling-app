@@ -27,14 +27,33 @@ export default function BroadcastVotePage() {
     const socketInstance = socketManager.connect()
     setSocket(socketInstance)
 
+    // Check localStorage first for poll data
+    const storedPoll = localStorage.getItem('currentPoll')
+    if (storedPoll) {
+      try {
+        const pollData = JSON.parse(storedPoll)
+        console.log('💾 Found poll data in localStorage:', pollData.question)
+        setPoll(pollData)
+        setPollStatus('waiting') // Show join button
+        localStorage.removeItem('currentPoll') // Clean up
+      } catch (error) {
+        console.error('❌ Error parsing stored poll data:', error)
+      }
+    }
+
     socketInstance.on('connect', () => {
       console.log('✅ PARTICIPANT: Connected to server from /vote page with ID:', socketInstance.id)
       console.log('🔌 Socket connected status:', socketInstance.connected)
       console.log('🌐 Socket URL:', (socketInstance as any).io.uri)
-      // Request current poll status when connected
-      console.log('🔍 Requesting current poll status...')
-      socketInstance.emit('get-current-poll')
-      console.log('📤 get-current-poll event emitted')
+      
+      // Only request current poll if we don't have poll data from localStorage
+      if (!storedPoll) {
+        console.log('🔍 No localStorage data, requesting current poll status...')
+        socketInstance.emit('get-current-poll')
+        console.log('📤 get-current-poll event emitted')
+      } else {
+        console.log('💾 Using poll data from localStorage, skipping get-current-poll')
+      }
     })
 
     // Handle poll broadcast - could be initial broadcast or join response

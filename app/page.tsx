@@ -67,6 +67,11 @@ export default function HomePage() {
 
   const handleJoinPoll = () => {
     console.log('🎯 PARTICIPANT: Join Now clicked, redirecting to /vote...')
+    // Store poll data in localStorage so vote page can access it
+    if (activePoll) {
+      localStorage.setItem('currentPoll', JSON.stringify(activePoll))
+      console.log('💾 Stored poll data in localStorage:', activePoll.question)
+    }
     router.push('/vote')
   }
 

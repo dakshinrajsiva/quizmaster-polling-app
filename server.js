@@ -21,7 +21,9 @@ const allowedOrigins = {
     'https://quizmaster-7iqxt45yp-dakshin-raj-sivas-projects.vercel.app',
     'https://quizmaster-bovprht3g-dakshin-raj-sivas-projects.vercel.app',
     'https://quizmaster-8ylo882qc-dakshin-raj-sivas-projects.vercel.app',
-    'https://quizmaster-m7kfsy8zr-dakshin-raj-sivas-projects.vercel.app'
+    'https://quizmaster-m7kfsy8zr-dakshin-raj-sivas-projects.vercel.app',
+    'https://quizmaster-qshcc6j6s-dakshin-raj-sivas-projects.vercel.app',
+    'https://quizmaster-4e7es6u1f-dakshin-raj-sivas-projects.vercel.app'
   ].filter(Boolean)
 };
 
