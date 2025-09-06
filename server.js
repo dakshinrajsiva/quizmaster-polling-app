@@ -569,11 +569,14 @@ io.on('connection', (socket) => {
   // Get current poll status
   socket.on('get-current-poll', () => {
     console.log('📋 Current poll requested by:', socket.id)
+    console.log('📋 GlobalPoll exists:', !!globalPoll)
+    console.log('📋 GlobalPoll status:', globalPoll?.status)
+    console.log('📋 GlobalPoll question:', globalPoll?.question)
     if (globalPoll && globalPoll.status === 'active') {
       console.log('📋 Sending current poll:', globalPoll.question)
       socket.emit('current-poll-response', { poll: globalPoll })
     } else {
-      console.log('📋 No active poll to send')
+      console.log('📋 No active poll to send - Poll exists:', !!globalPoll, 'Status:', globalPoll?.status)
       socket.emit('current-poll-response', { poll: null })
     }
   })
