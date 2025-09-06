@@ -34,15 +34,19 @@ export default function BroadcastVotePage() {
       socketInstance.emit('get-current-poll')
     })
 
-    // Show join button when poll is broadcast
+    // Handle poll broadcast - could be initial broadcast or join response
     socketInstance.on('poll-broadcast', (data: any) => {
       console.log('🎯 PARTICIPANT: Poll broadcast received on VOTE page:', data)
       console.log('🎯 PARTICIPANT: Poll question:', data.poll?.question)
       console.log('🎯 PARTICIPANT: Poll options:', data.poll?.options)
-      console.log('🎯 PARTICIPANT: Setting poll status to waiting...')
+      
       setPoll(data.poll)
-      setPollStatus('waiting') // Changed from 'active' to 'waiting'
       setError('')
+      
+      // If we're already on the vote page, this is likely a join response
+      // so we should show the poll as waiting for join confirmation
+      console.log('🎯 PARTICIPANT: Setting poll status to waiting for join...')
+      setPollStatus('waiting')
       
       // Set timer if applicable
       if (data.poll.timeLimit) {
@@ -94,6 +98,11 @@ export default function BroadcastVotePage() {
         if (data.poll.timeLimit) {
           setTimeRemaining(data.poll.timeLimit)
         }
+        // Auto-join the poll since user came from "Join Now" button
+        console.log('👤 Auto-joining poll since user clicked Join Now...')
+        setTimeout(() => {
+          socketInstance.emit('join-broadcast-poll')
+        }, 100) // Small delay to ensure poll is set
       } else {
         console.log('❌ No active poll found')
         setPollStatus('waiting')
