@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic'
 export default function VotePage() {
   const params = useParams()
   const router = useRouter()
-  const pollCode = params.pollCode as string
+  const pollCode = params?.pollCode as string
   
   const [socket, setSocket] = useState<any>(null)
   const [pollStatus, setPollStatus] = useState<'joining' | 'waiting' | 'active' | 'voted' | 'closed'>('joining')

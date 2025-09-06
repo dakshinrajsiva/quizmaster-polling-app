@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic'
 export default function PollHostPage() {
   const params = useParams()
   const router = useRouter()
-  const pollCode = params.pollCode as string
+  const pollCode = params?.pollCode as string
   
   const [socket, setSocket] = useState<any>(null)
   const [room, setRoom] = useState<PollRoom | null>(null)

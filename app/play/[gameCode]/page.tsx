@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic'
 export default function PlayGamePage() {
   const params = useParams()
   const router = useRouter()
-  const gameCode = params.gameCode as string
+  const gameCode = params?.gameCode as string
   
   const [socket, setSocket] = useState<any>(null)
   const [gameStatus, setGameStatus] = useState<'joining' | 'waiting' | 'active' | 'answered' | 'results' | 'finished'>('joining')
