@@ -41,10 +41,9 @@ export default function HomePage() {
     socketInstance.on('poll-broadcast', (data: any) => {
       console.log('🎯 PARTICIPANT: Poll broadcast received on HOME page:', data)
       console.log('🎯 PARTICIPANT: Poll question:', data.poll?.question)
-      console.log('🎯 PARTICIPANT: Redirecting to /vote...')
+      console.log('🎯 PARTICIPANT: Showing Join Now button...')
       setActivePoll(data.poll)
-      // Auto-redirect to poll voting page
-      router.push('/vote')
+      // Don't auto-redirect - show Join Now button instead
     })
 
     // Listen for poll closed
@@ -64,6 +63,11 @@ export default function HomePage() {
 
   const handleCreatePoll = () => {
     router.push('/poll')
+  }
+
+  const handleJoinPoll = () => {
+    console.log('🎯 PARTICIPANT: Join Now clicked, redirecting to /vote...')
+    router.push('/vote')
   }
 
   return (
@@ -144,23 +148,24 @@ export default function HomePage() {
               
               <div className="space-y-4">
                 {activePoll ? (
-                  <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
-                    <p className="font-bold">Active Poll:</p>
-                    <p className="text-sm">{activePoll.question}</p>
+                  <div className="bg-blue-100 border border-blue-400 text-blue-800 px-4 py-3 rounded mb-4">
+                    <p className="font-bold text-lg mb-2">📊 Poll Available!</p>
+                    <p className="text-base font-medium mb-2">{activePoll.question}</p>
+                    <p className="text-sm text-blue-600">Click "Join Now" to participate in this poll</p>
                   </div>
                 ) : (
-                  <div className="bg-gray-100 border border-gray-300 text-gray-600 px-4 py-3 rounded">
-                    <p className="text-sm">You'll be automatically redirected when a poll starts</p>
+                  <div className="bg-gray-100 border border-gray-300 text-gray-600 px-4 py-3 rounded mb-4">
+                    <p className="text-sm">Waiting for polls to be launched...</p>
                   </div>
                 )}
                 
                 <button
-                  onClick={() => router.push('/vote')}
+                  onClick={handleJoinPoll}
                   disabled={!activePoll}
-                  className="btn-secondary w-full disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                  className="btn-primary w-full text-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                 >
                   <BarChart3 className="w-4 h-4 mr-2 inline" />
-                  {activePoll ? 'Go to Active Poll' : 'No Active Poll'}
+                  {activePoll ? 'Join Now' : 'No Active Poll'}
                 </button>
               </div>
             </div>
