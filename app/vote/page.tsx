@@ -6,12 +6,10 @@ import { BarChart3, Clock, Users, CheckCircle } from 'lucide-react'
 import socketManager from '@/lib/socket-manager'
 import { formatTime } from '@/lib/utils'
 
-// Force dynamic rendering
 export const dynamic = 'force-dynamic'
 
 export default function BroadcastVotePage() {
   const router = useRouter()
-  
   const [socket, setSocket] = useState<any>(null)
   const [pollStatus, setPollStatus] = useState<'waiting' | 'active' | 'voted' | 'closed'>('waiting')
   const [participant, setParticipant] = useState<any>(null)
@@ -45,39 +43,21 @@ export default function BroadcastVotePage() {
     socketInstance.on('connect', () => {
       console.log('✅ PARTICIPANT: Connected to server from /vote page with ID:', socketInstance.id)
       console.log('🔌 Socket connected status:', socketInstance.connected)
-      console.log('🌐 Socket URL:', (socketInstance as any).io.uri)
       
-      // Auto-join poll in background if we have localStorage data
-      if (storedPoll) {
-        console.log('💾 Using poll data from localStorage, auto-joining poll...')
-        setTimeout(() => {
-          console.log('🤝 Auto-joining broadcast poll in background...')
-          socketInstance.emit('join-broadcast-poll')
-        }, 500) // Small delay to ensure everything is set up
-      } else {
+      // Always auto-join poll when connected - with longer delay
+      console.log('🤝 Auto-joining broadcast poll on connect...')
+      setTimeout(() => {
+        console.log('📤 Emitting join-broadcast-poll event...')
+        socketInstance.emit('join-broadcast-poll')
+      }, 1000) // Increased delay to ensure server is ready
+      
+      // Also request current poll status if no localStorage data
+      if (!storedPoll) {
         console.log('🔍 No localStorage data, requesting current poll status...')
-        socketInstance.emit('get-current-poll')
-        console.log('📤 get-current-poll event emitted')
-      }
-    })
-
-    // Handle poll broadcast - could be initial broadcast or join response
-    socketInstance.on('poll-broadcast', (data: any) => {
-      console.log('🎯 PARTICIPANT: Poll broadcast received on VOTE page:', data)
-      console.log('🎯 PARTICIPANT: Poll question:', data.poll?.question)
-      console.log('🎯 PARTICIPANT: Poll options:', data.poll?.options)
-      
-      setPoll(data.poll)
-      setError('')
-      
-      // If we're already on the vote page, this is likely a join response
-      // so we should show the poll as waiting for join confirmation
-      console.log('🎯 PARTICIPANT: Setting poll status to waiting for join...')
-      setPollStatus('waiting')
-      
-      // Set timer if applicable
-      if (data.poll.timeLimit) {
-        setTimeRemaining(data.poll.timeLimit)
+        setTimeout(() => {
+          socketInstance.emit('get-current-poll')
+          console.log('📤 get-current-poll event emitted')
+        }, 500)
       }
     })
 
@@ -98,16 +78,18 @@ export default function BroadcastVotePage() {
     })
 
     socketInstance.on('poll-join-error', (data: any) => {
+      console.log('❌ Failed to join poll:', data.message)
       setError(data.message)
     })
 
     socketInstance.on('vote-submitted', (data: any) => {
-      console.log('Vote submitted:', data)
+      console.log('✅ Vote submitted successfully:', data)
       setResults(data.results)
       setPollStatus('voted')
     })
 
     socketInstance.on('vote-error', (data: any) => {
+      console.log('❌ Vote submission failed:', data.message)
       setError(data.message)
     })
 
@@ -128,15 +110,15 @@ export default function BroadcastVotePage() {
       if (data.poll && data.poll.status === 'active') {
         console.log('🎯 Found active poll:', data.poll.question)
         setPoll(data.poll)
-        setPollStatus('waiting')
+        setPollStatus('active') // Show voting interface immediately
         if (data.poll.timeLimit) {
           setTimeRemaining(data.poll.timeLimit)
         }
-        // Auto-join the poll since user came from "Join Now" button
-        console.log('👤 Auto-joining poll since user clicked Join Now...')
+        // Auto-join the poll
+        console.log('👤 Auto-joining poll from current-poll-response...')
         setTimeout(() => {
           socketInstance.emit('join-broadcast-poll')
-        }, 100) // Small delay to ensure poll is set
+        }, 200)
       } else {
         console.log('❌ No active poll found')
         setPollStatus('waiting')
@@ -145,7 +127,6 @@ export default function BroadcastVotePage() {
 
     return () => {
       socketInstance.off('connect')
-      socketInstance.off('poll-broadcast')
       socketInstance.off('poll-join-success')
       socketInstance.off('poll-join-error')
       socketInstance.off('vote-submitted')
@@ -187,14 +168,14 @@ export default function BroadcastVotePage() {
       return
     }
 
+    console.log('🗳️ PARTICIPANT: Submitting vote with options:', selectedOptions)
+    console.log('🗳️ PARTICIPANT: Socket connected:', socket?.connected)
+    console.log('🗳️ PARTICIPANT: Socket ID:', socket?.id)
+    console.log('🗳️ PARTICIPANT: Participant joined:', !!participant)
+
     socket?.emit('submit-broadcast-vote', {
       selectedOptions
     })
-  }
-
-  const joinPoll = () => {
-    console.log('👤 PARTICIPANT: Joining broadcast poll...')
-    socket?.emit('join-broadcast-poll')
   }
 
   const goBack = () => {
@@ -257,6 +238,16 @@ export default function BroadcastVotePage() {
                       <span>{formatTime(timeRemaining)}</span>
                     </div>
                   )}
+                  {participant && (
+                    <div className="text-sm text-green-600">
+                      ✅ Joined as {participant.name}
+                    </div>
+                  )}
+                  {!participant && (
+                    <div className="text-sm text-yellow-600">
+                      ⏳ Joining poll...
+                    </div>
+                  )}
                 </div>
               </div>
               <button
@@ -270,6 +261,12 @@ export default function BroadcastVotePage() {
             {error && (
               <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
                 {error}
+                <button 
+                  onClick={() => setError('')} 
+                  className="ml-2 text-red-900 hover:text-red-700"
+                >
+                  ✕
+                </button>
               </div>
             )}
 
@@ -278,11 +275,12 @@ export default function BroadcastVotePage() {
                 <button
                   key={index}
                   onClick={() => toggleOption(index)}
+                  disabled={!participant} // Disable until joined
                   className={`w-full p-4 text-left border-2 rounded-lg transition-all ${
                     selectedOptions.includes(index)
                       ? 'border-secondary-500 bg-secondary-50'
                       : 'border-gray-200 hover:border-secondary-300'
-                  }`}
+                  } ${!participant ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   <div className="flex items-center justify-between">
                     <span className="font-medium">{option}</span>
@@ -302,10 +300,10 @@ export default function BroadcastVotePage() {
 
             <button
               onClick={submitVote}
-              disabled={selectedOptions.length === 0}
+              disabled={selectedOptions.length === 0 || !participant} // Disable until joined
               className="btn-primary w-full text-lg disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Submit Vote
+              {!participant ? 'Joining Poll...' : 'Submit Vote'}
             </button>
           </div>
         </div>
@@ -313,68 +311,45 @@ export default function BroadcastVotePage() {
     )
   }
 
-  // After voting - show results
-  if (pollStatus === 'voted' || pollStatus === 'closed') {
+  // Fallback for other poll statuses
+  if (pollStatus === 'voted') {
     return (
       <div className="min-h-screen p-4">
         <div className="max-w-4xl mx-auto">
-          <div className="card mb-6">
-            <div className="flex justify-between items-start mb-6">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-800 mb-2">{results?.question}</h1>
-                <div className="flex items-center gap-4 text-gray-600">
-                  <div className="flex items-center gap-1">
-                    <Users className="w-4 h-4" />
-                    <span>{results?.participantCount} participants</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <BarChart3 className="w-4 h-4" />
-                    <span>{results?.totalVotes} votes</span>
-                  </div>
-                </div>
+          <div className="card">
+            <div className="text-center mb-6">
+              <div className="bg-green-100 p-4 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+                <CheckCircle className="w-8 h-8 text-green-600" />
               </div>
-              <div className="text-right">
-                <div className={`px-3 py-1 rounded-full text-sm font-medium ${
-                  pollStatus === 'voted' 
-                    ? 'bg-blue-100 text-blue-800' 
-                    : 'bg-gray-100 text-gray-800'
-                }`}>
-                  {pollStatus === 'voted' ? 'Vote Submitted' : 'Poll Closed'}
-                </div>
-              </div>
+              <h1 className="text-2xl font-bold text-gray-800 mb-2">Vote Submitted!</h1>
+              <p className="text-gray-600">Thank you for participating</p>
             </div>
 
-            <div className="space-y-4 mb-6">
-              {results?.options.map((option: string, index: number) => {
-                const votes = results.stats[index]
-                const percentage = getOptionPercentage(index)
-                const isMax = votes === getMaxVotes() && votes > 0
-
-                return (
+            {results && (
+              <div className="space-y-4 mb-6">
+                <h2 className="text-xl font-bold text-gray-800 mb-4">Live Results</h2>
+                {results.options.map((option: string, index: number) => (
                   <div key={index} className="space-y-2">
                     <div className="flex justify-between items-center">
                       <span className="font-medium">{option}</span>
-                      <span className="text-sm text-gray-600">
-                        {votes} votes ({percentage}%)
+                      <span className="text-gray-600">
+                        {results.stats[index]} votes ({getOptionPercentage(index)}%)
                       </span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-3">
-                      <div
-                        className={`h-3 rounded-full transition-all duration-500 ${
-                          isMax ? 'bg-secondary-600' : 'bg-secondary-400'
-                        }`}
-                        style={{ width: `${percentage}%` }}
+                      <div 
+                        className="bg-secondary-500 h-3 rounded-full transition-all duration-500"
+                        style={{ 
+                          width: `${getOptionPercentage(index)}%`,
+                          opacity: results.stats[index] === getMaxVotes() && getMaxVotes() > 0 ? 1 : 0.7
+                        }}
                       />
                     </div>
                   </div>
-                )
-              })}
-            </div>
-
-            {pollStatus === 'voted' && (
-              <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
-                <p className="font-medium">Thank you for voting!</p>
-                <p className="text-sm">Results will update live as others vote.</p>
+                ))}
+                <div className="text-center text-gray-600 mt-4">
+                  Total votes: {results.totalVotes} | Participants: {results.participantCount}
+                </div>
               </div>
             )}
 
@@ -390,29 +365,52 @@ export default function BroadcastVotePage() {
     )
   }
 
-  // Fallback case - if we're active but missing poll data
-  if (pollStatus === 'active') {
+  if (pollStatus === 'closed') {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="max-w-md w-full">
-          <div className="card text-center">
-            <div className="mb-6">
-              <div className="bg-red-100 p-4 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-                <BarChart3 className="w-8 h-8 text-red-600" />
+      <div className="min-h-screen p-4">
+        <div className="max-w-4xl mx-auto">
+          <div className="card">
+            <div className="text-center mb-6">
+              <div className="bg-gray-100 p-4 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+                <BarChart3 className="w-8 h-8 text-gray-600" />
               </div>
-              <h1 className="text-2xl font-bold text-gray-800 mb-2">Loading Poll...</h1>
-              <p className="text-gray-600">Getting poll data...</p>
-              <p className="text-sm text-gray-500 mt-2">Status: {pollStatus}</p>
-              <p className="text-sm text-gray-500">Poll: {poll ? 'Available' : 'Missing'}</p>
-              <p className="text-sm text-gray-500">Question: {poll?.question || 'Missing'}</p>
-              <p className="text-sm text-gray-500">Options: {poll?.options?.length || 0}</p>
+              <h1 className="text-2xl font-bold text-gray-800 mb-2">Poll Closed</h1>
+              <p className="text-gray-600">This poll has ended</p>
             </div>
+
+            {results && (
+              <div className="space-y-4 mb-6">
+                <h2 className="text-xl font-bold text-gray-800 mb-4">Final Results</h2>
+                {results.options.map((option: string, index: number) => (
+                  <div key={index} className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="font-medium">{option}</span>
+                      <span className="text-gray-600">
+                        {results.stats[index]} votes ({getOptionPercentage(index)}%)
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-3">
+                      <div 
+                        className="bg-secondary-500 h-3 rounded-full transition-all duration-500"
+                        style={{ 
+                          width: `${getOptionPercentage(index)}%`,
+                          opacity: results.stats[index] === getMaxVotes() && getMaxVotes() > 0 ? 1 : 0.7
+                        }}
+                      />
+                    </div>
+                  </div>
+                ))}
+                <div className="text-center text-gray-600 mt-4">
+                  Total votes: {results.totalVotes} | Participants: {results.participantCount}
+                </div>
+              </div>
+            )}
 
             <button
               onClick={goBack}
-              className="text-gray-500 hover:text-gray-700 text-sm"
+              className="btn-secondary w-full"
             >
-              ← Back to Home
+              Back to Home
             </button>
           </div>
         </div>

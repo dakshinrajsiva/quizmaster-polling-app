@@ -91,6 +91,7 @@ const MAX_REQUESTS_PER_WINDOW = 500 // Increased for testing - was 100
 let globalPoll = null
 let globalPollParticipants = new Map()
 let globalPollVotes = {}
+let globalPollTimer = null
 
 // Debug function to log globalPoll state
 function logGlobalPollState(context) {
@@ -100,6 +101,46 @@ function logGlobalPollState(context) {
   console.log(`   - Question: ${globalPoll?.question}`)
   console.log(`   - Host: ${globalPoll?.host}`)
   console.log(`   - Participants: ${globalPollParticipants.size}`)
+  console.log(`   - Timer: ${!!globalPollTimer}`)
+}
+
+// Function to auto-close poll when time limit expires
+function autoClosePoll() {
+  if (!globalPoll || globalPoll.status !== 'active') {
+    return
+  }
+  
+  console.log('⏰ Poll time limit reached, auto-closing poll:', globalPoll.question)
+  
+  globalPoll.status = 'closed'
+  
+  const totalVotes = Object.values(globalPollVotes).reduce((sum, count) => sum + count, 0)
+  const finalResults = {
+    question: globalPoll.question,
+    options: globalPoll.options,
+    stats: globalPoll.options.map((_, index) => globalPollVotes[index] || 0),
+    totalVotes,
+    participantCount: globalPollParticipants.size
+  }
+  
+  // Broadcast poll closed to everyone
+  io.emit('poll-broadcast-closed', finalResults)
+  
+  console.log(`⏰ Poll "${globalPoll.question}" auto-closed due to time limit`)
+  
+  // Clear timer
+  if (globalPollTimer) {
+    clearTimeout(globalPollTimer)
+    globalPollTimer = null
+  }
+  
+  // Reset global poll after a delay
+  setTimeout(() => {
+    console.log('🧹 CLEARING GlobalPoll after auto-close')
+    globalPoll = null
+    globalPollParticipants.clear()
+    globalPollVotes = {}
+  }, 5000)
 }
 
 // Connection validation
@@ -221,7 +262,20 @@ io.on('connection', (socket) => {
     }
     
     globalPoll.status = 'active'
+    globalPoll.startedAt = new Date()
     globalPollParticipants.clear()
+    
+    // Clear any existing timer
+    if (globalPollTimer) {
+      clearTimeout(globalPollTimer)
+      globalPollTimer = null
+    }
+    
+    // Set up auto-close timer if poll has time limit
+    if (globalPoll.timeLimit && globalPoll.timeLimit > 0) {
+      console.log(`⏰ Setting poll timer for ${globalPoll.timeLimit} seconds`)
+      globalPollTimer = setTimeout(autoClosePoll, globalPoll.timeLimit * 1000)
+    }
     
     logGlobalPollState('AFTER LAUNCH')
     
@@ -362,6 +416,13 @@ io.on('connection', (socket) => {
     console.log('🛑 PROCEEDING: Closing broadcast poll')
     
     globalPoll.status = 'closed'
+    
+    // Clear the timer if it exists
+    if (globalPollTimer) {
+      clearTimeout(globalPollTimer)
+      globalPollTimer = null
+      console.log('⏰ Cleared poll timer')
+    }
     
     const totalVotes = Object.values(globalPollVotes).reduce((sum, count) => sum + count, 0)
     const finalResults = {
