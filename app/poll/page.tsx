@@ -25,6 +25,7 @@ export default function PollPage() {
   })
   const [pollReady, setPollReady] = useState(false)
   const [pollActive, setPollActive] = useState(false)
+  const [pollClosed, setPollClosed] = useState(false)
   const [pollResults, setPollResults] = useState<any>(null)
   const [socket, setSocket] = useState<any>(null)
 
@@ -50,7 +51,8 @@ export default function PollPage() {
       console.log('🏆 Final results received for presenter:', data)
       setPollResults(data)
       setPollActive(false)
-      setCurrentView('results')
+      setPollClosed(true)
+      // Don't automatically switch to results view - let admin choose
     })
 
     socketInstance.on('poll-broadcast-closed', (data: any) => {
@@ -135,9 +137,14 @@ export default function PollPage() {
     // Don't reset immediately - wait for final results
   }
 
+  const showResults = () => {
+    setCurrentView('results')
+  }
+
   const resetPoll = () => {
     setPollReady(false)
     setPollActive(false)
+    setPollClosed(false)
     setCurrentView('create')
     // Reset poll
     setPoll({
@@ -172,6 +179,105 @@ export default function PollPage() {
       createdAt: new Date(),
       createdBy: 'Poll Host'
     })
+  }
+
+  // Final Results View - Clean Professional Display
+  if (currentView === 'results') {
+    return (
+      <div className="h-screen bg-gradient-to-br from-slate-50 to-gray-100 p-6 overflow-hidden">
+        <div className="max-w-6xl mx-auto h-full flex flex-col">
+          {/* Header */}
+          <div className="text-center mb-8">
+            <h1 className="text-4xl font-bold text-gray-800 mb-3">Poll Results</h1>
+            <p className="text-xl text-gray-600 font-medium">{poll.question}</p>
+            <div className="flex justify-center items-center gap-8 mt-4">
+              <div className="text-center">
+                <span className="text-3xl font-bold text-blue-600">{pollResults?.participantCount || 0}</span>
+                <p className="text-sm text-gray-500">Participants</p>
+              </div>
+              <div className="text-center">
+                <span className="text-3xl font-bold text-green-600">{pollResults?.totalVotes || 0}</span>
+                <p className="text-sm text-gray-500">Total Votes</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Results Display */}
+          <div className="flex-1 bg-white rounded-2xl shadow-lg p-8 overflow-hidden">
+            <div className="h-full flex flex-col">
+              <div className="grid gap-6 flex-1">
+                {pollResults?.options.map((option: string, index: number) => {
+                  const votes = pollResults.stats[index] || 0
+                  const percentage = pollResults.totalVotes > 0 
+                    ? Math.round((votes / pollResults.totalVotes) * 100) 
+                    : 0
+                  const isWinner = votes === Math.max(...pollResults.stats) && votes > 0
+                  
+                  return (
+                    <div key={index} className="relative">
+                      <div className="flex justify-between items-center mb-3">
+                        <div className="flex items-center gap-3">
+                          {isWinner && votes > 0 && (
+                            <span className="text-2xl">🏆</span>
+                          )}
+                          <span className={`text-2xl font-bold ${
+                            isWinner ? 'text-yellow-600' : 'text-gray-800'
+                          }`}>
+                            {option}
+                          </span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-3xl font-bold text-gray-800">
+                            {votes}
+                          </span>
+                          <span className="text-lg text-gray-500 ml-2">
+                            ({percentage}%)
+                          </span>
+                        </div>
+                      </div>
+                      
+                      {/* Progress Bar */}
+                      <div className="w-full bg-gray-200 rounded-full h-8 shadow-inner">
+                        <div
+                          className={`h-8 rounded-full transition-all duration-2000 ease-out ${
+                            isWinner 
+                              ? 'bg-gradient-to-r from-yellow-400 to-yellow-500' 
+                              : 'bg-gradient-to-r from-blue-400 to-blue-500'
+                          }`}
+                          style={{ width: `${percentage}%` }}
+                        >
+                          <div className="flex items-center justify-center h-full">
+                            {percentage > 15 && (
+                              <span className="text-white font-bold text-lg">{percentage}%</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Footer Actions */}
+          <div className="flex justify-center gap-4 mt-6">
+            <button
+              onClick={resetPoll}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-8 py-3 rounded-lg transition-colors"
+            >
+              Create New Poll
+            </button>
+            <button
+              onClick={() => router.push('/')}
+              className="bg-gray-600 hover:bg-gray-700 text-white font-semibold px-8 py-3 rounded-lg transition-colors"
+            >
+              Back to Home
+            </button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   if (currentView === 'ready') {
@@ -212,25 +318,45 @@ export default function PollPage() {
           {/* Poll Ready Display */}
           <div className="card text-center mb-8">
             <h2 className="text-2xl font-bold text-gray-800 mb-4">📡 Broadcast Poll Ready</h2>
-            <div className="bg-gradient-to-r from-green-500 to-blue-500 text-white text-2xl font-bold py-6 px-8 rounded-lg inline-block">
-              When you launch, this poll will appear on everyone's screen instantly!
-            </div>
-            <div className="flex gap-4 justify-center mt-6">
-              {!pollActive ? (
+            <div className="flex gap-4 justify-center">
+              {!pollActive && !pollClosed ? (
                 <button
                   onClick={launchPoll}
                   className="btn-success text-lg px-8 py-3"
                 >
                   🚀 Launch Poll to Everyone
                 </button>
-              ) : (
+              ) : pollActive ? (
                 <button
                   onClick={closePoll}
                   className="btn-danger text-lg px-8 py-3"
                 >
                   🛑 Close Poll
                 </button>
-              )}
+              ) : pollClosed ? (
+                <div className="space-y-4">
+                  <div className="bg-green-100 border border-green-300 text-green-800 px-6 py-3 rounded-lg">
+                    <p className="font-semibold">✅ Poll Successfully Closed!</p>
+                    <p className="text-sm mt-1">
+                      {pollResults?.participantCount || 0} participants • {pollResults?.totalVotes || 0} total votes
+                    </p>
+                  </div>
+                  <div className="flex gap-4 justify-center">
+                    <button
+                      onClick={showResults}
+                      className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-bold text-lg px-8 py-3 rounded-lg shadow-lg transform transition-all duration-200 hover:scale-105"
+                    >
+                      📊 Show Results
+                    </button>
+                    <button
+                      onClick={resetPoll}
+                      className="btn-secondary text-lg px-8 py-3"
+                    >
+                      🆕 Create New Poll
+                    </button>
+                  </div>
+                </div>
+              ) : null}
             </div>
           </div>
 
@@ -246,11 +372,13 @@ export default function PollPage() {
                 <div className={`p-4 rounded-lg border-2 ${
                   pollActive 
                     ? 'bg-green-50 border-green-200 text-green-800'
+                    : pollClosed
+                    ? 'bg-gray-50 border-gray-200 text-gray-800'
                     : 'bg-yellow-50 border-yellow-200 text-yellow-800'
                 }`}>
                   <div className="flex items-center justify-between">
                     <span className="font-medium">
-                      {pollActive ? '🟢 Poll is LIVE' : '🟡 Poll Ready to Launch'}
+                      {pollActive ? '🟢 Poll is LIVE' : pollClosed ? '⚫ Poll Closed' : '🟡 Poll Ready to Launch'}
                     </span>
                     {pollResults && (
                       <span className="text-sm">
@@ -265,6 +393,15 @@ export default function PollPage() {
                     <p className="text-sm">
                       📱 Poll is now visible on everyone's screens!<br />
                       Results will update here in real-time.
+                    </p>
+                  </div>
+                )}
+                
+                {pollClosed && (
+                  <div className="bg-green-50 border border-green-200 text-green-800 p-4 rounded-lg">
+                    <p className="text-sm">
+                      🏁 Poll has been closed successfully!<br />
+                      Click "Show Results" to view the full-screen results display.
                     </p>
                   </div>
                 )}
@@ -465,114 +602,4 @@ export default function PollPage() {
       </div>
     </div>
   )
-
-  // Final Results View
-  if (currentView === 'results') {
-    return (
-      <div className="min-h-screen p-4">
-        <div className="max-w-4xl mx-auto">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-8">
-            <button
-              onClick={goBack}
-              className="flex items-center text-gray-600 hover:text-gray-800 transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5 mr-2" />
-              Create New Poll
-            </button>
-            <div className="text-center">
-              <h1 className="text-3xl font-bold text-gray-800 mb-2">🏁 Final Results</h1>
-              <p className="text-gray-600">{poll.question}</p>
-            </div>
-            <div></div>
-          </div>
-
-          {/* Final Results Display */}
-          <div className="card mb-8">
-            <div className="text-center mb-6">
-              <div className="bg-green-100 p-4 rounded-lg border-2 border-green-200 mb-4">
-                <h2 className="text-2xl font-bold text-green-800 mb-2">🎆 Poll Completed!</h2>
-                <div className="grid grid-cols-2 gap-4 text-green-700">
-                  <div>
-                    <span className="font-bold text-lg">{pollResults?.participantCount || 0}</span>
-                    <p className="text-sm">Total Participants</p>
-                  </div>
-                  <div>
-                    <span className="font-bold text-lg">{pollResults?.totalVotes || 0}</span>
-                    <p className="text-sm">Total Votes</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Results Chart */}
-            <div className="space-y-6">
-              {pollResults?.options.map((option: string, index: number) => {
-                const votes = pollResults.stats[index] || 0
-                const percentage = pollResults.totalVotes > 0 
-                  ? Math.round((votes / pollResults.totalVotes) * 100) 
-                  : 0
-                const isWinner = votes === Math.max(...pollResults.stats) && votes > 0
-                
-                return (
-                  <div key={index} className="space-y-3">
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center gap-3">
-                        {isWinner && votes > 0 && (
-                          <span className="text-2xl">🏆</span>
-                        )}
-                        <span className={`text-lg font-semibold ${
-                          isWinner ? 'text-yellow-600' : 'text-gray-800'
-                        }`}>
-                          {option}
-                        </span>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-xl font-bold text-gray-800">
-                          {votes} votes
-                        </span>
-                        <span className={`block text-sm ${
-                          isWinner ? 'text-yellow-600 font-semibold' : 'text-gray-600'
-                        }`}>
-                          {percentage}%
-                        </span>
-                      </div>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-4">
-                      <div
-                        className={`h-4 rounded-full transition-all duration-1000 ${
-                          isWinner 
-                            ? 'bg-gradient-to-r from-yellow-400 to-yellow-600' 
-                            : 'bg-gradient-to-r from-secondary-400 to-secondary-600'
-                        }`}
-                        style={{ width: `${percentage}%` }}
-                      />
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex gap-4 justify-center mt-8 pt-6 border-t border-gray-200">
-              <button
-                onClick={resetPoll}
-                className="btn-success px-8 py-3 text-lg"
-              >
-                🎆 Create Another Poll
-              </button>
-              <button
-                onClick={() => router.push('/')}
-                className="btn-secondary px-8 py-3 text-lg"
-              >
-                🏠 Back to Home
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  return null
 }

@@ -491,7 +491,62 @@ io.on('connection', (socket) => {
   })
 })
 
+// Add REST endpoints for admin dashboard
+httpServer.on('request', (req, res) => {
+  // Set CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*')
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200)
+    res.end()
+    return
+  }
+
+  // Get active polls endpoint
+  if (req.url === '/api/active-polls' && req.method === 'GET') {
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    
+    const activePolls = []
+    
+    // Check global poll
+    if (globalPoll && globalPoll.status === 'active') {
+      activePolls.push({
+        id: 'global',
+        question: globalPoll.question,
+        options: globalPoll.options,
+        participants: globalPollParticipants.size,
+        votes: globalPollVotes,
+        status: 'active'
+      })
+    }
+    
+    // Check room-based polls
+    pollRooms.forEach((room, pollCode) => {
+      if (room.status === 'active') {
+        activePolls.push({
+          id: pollCode,
+          question: room.poll.question,
+          options: room.poll.options,
+          participants: room.participants.length,
+          votes: room.results,
+          status: 'active'
+        })
+      }
+    })
+    
+    res.end(JSON.stringify({ polls: activePolls }))
+    return
+  }
+
+  // Default response for other requests
+  res.writeHead(404)
+  res.end('Not Found')
+})
+
 const PORT = process.env.PORT || 3001
 httpServer.listen(PORT, () => {
   console.log(`Socket.io server running on port ${PORT}`)
+  console.log(`REST API available at http://localhost:${PORT}/api/`)
 })
